@@ -15,6 +15,8 @@
 #include "producer.cpp"
 #include "router-strategy.hpp"
 #include "router-strategy.cpp"
+#include "consumer.hpp"
+#include "consumer.cpp"
 
 
 using namespace std;

@@ -1,11 +1,13 @@
 #include "consumer.hpp"
+#include "ndn-cxx/auth-tag.hpp"
+#include <boost/regex.hpp>
 
 namespace ndntac
 {
   const ns3::Time Consumer::s_consumer_signature_delay = ns3::MilliSeconds( 121.641253 );
   const ns3::Time Consumer::s_consumer_bloom_delay = ns3::MilliSeconds( 9.238432 );
   const ns3::Time Consumer::s_consumer_interest_delay = ns3::MilliSeconds( 100 );
-  uint32_t Producer::s_instance_id = 0;
+  uint32_t Consumer::s_instance_id = 0;
 
   ns3::TypeId
   Consumer::GetTypeId()
@@ -40,5 +42,128 @@ namespace ndntac
     m_instance_id = s_instance_id++;
   }
 
+  void
+  Consumer::StartApplication()
+  {
+    App::StartApplication();
+    parseKnownProducers( m_known_producers_list );
+
+  }
+
+  void
+  Consumer::StopApplication()
+  {
+    App::StopApplication();
+  }
+
+  void
+  Consumer::OnData( shared_ptr< const ndn::Data > data )
+  {
+
+    // if it's an authentication response then parse
+    if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
+    {
+        const ndn::Block& payload = data->getContent().blockFromValue();
+        ndn::AuthTag tag( payload );
+        m_auth_tags[data->getName().getPrefix(1)] = tag;
+        return;
+    }
+
+    if( data->getContentType() == ndn::tlv::ContentType_Nack )
+    {
+        return;
+    }
+
+    // look for links
+    const ndn::Block& payload = data->getContent();
+    string content( (char*)payload.wire(), payload.size() );
+
+    const static boost::regex link_regex("<a>(.+?)</a>" );
+    boost::smatch link_match;
+    auto begin = boost::sregex_iterator( content.begin(),
+                                         content.end(),
+                                         link_regex );
+    auto end = boost::sregex_iterator();
+    for( auto it = begin ; it != end ; it++ )
+    {
+        if( hasAuth( (*it)[1].str() ) )
+        {
+          requestData( (*it)[1].str() );
+        }
+        else
+        {
+          requestAuth( (*it)[1].str() );
+        }
+    }
+  }
+
+  void
+  Consumer::sendNext()
+  {
+    if( m_interest_queue.size() == 0 )
+    {
+        // if nothing queued request from one of the known producers
+
+        unsigned which = rand() % m_known_producers.size();
+        ndn::Name name = m_known_producers[ which ];
+        name.append("index.html");
+
+        if( hasAuth( name ) )
+            requestData( name );
+        else
+            requestAuth( name );
+        sendNext();
+        return;
+    }
+
+    m_queue.receiveInterest( m_face, m_interest_queue.front() );
+    m_interest_queue.pop();
+
+    using ns3::Simulator;
+    using ns3::Seconds;
+    Simulator::Schedule( Seconds( m_min_interval + ( m_max_interval - m_min_interval) / rand() )
+                          , &Consumer::sendNext
+                          , this );
+  }
+
+  bool
+  Consumer::hasAuth( const ndn::Name& name )
+  {
+    return m_auth_tags.find( name.getPrefix( 1 ) ) != m_auth_tags.end();
+  }
+
+  void
+  Consumer::requestAuth( const ndn::Name& name )
+  {
+    m_interest_queue.push( make_shared<ndn::Interest>(name.getPrefix(1).append("AUTH_TAG") ) );
+    ndn::Interest& interest = *m_interest_queue.front();
+    interest.setInterestLifetime( ndn::time::seconds( 0 ) );
+    interest.setNonce( rand() );
+  }
+
+  void
+  Consumer::requestData( const ndn::Name& name )
+  {
+    m_interest_queue.push( make_shared<ndn::Interest>( name ) );
+    ndn::Interest& interest = *m_interest_queue.front();
+
+    if( hasAuth( name ) )
+        interest.setAuthTag( m_auth_tags[ name.getPrefix( 1 ) ] );
+    interest.setInterestLifetime( ndn::time::seconds( 2 ) );
+    interest.setNonce( rand() );
+  }
+
+  void
+  Consumer::parseKnownProducers( const std::string& plist )
+  {
+    auto it = plist.begin();
+    while( it != plist.end() && *it != ':' ) it++;
+
+    if( *it == ':')
+    {
+      m_known_producers.emplace_back( plist.substr( 0, it - plist.begin() ) );
+      parseKnownProducers( plist.substr( it - plist.begin() + 1, plist.length() ) );
+    }
+  }
 
 }

@@ -30,11 +30,11 @@
 
 
 #ifndef CONSUMER__INCLUDED
-#define CONSUMER_INCLUDED
+#define CONSUMER__INCLUDED
 
 namespace ndntac
 {
-  class Producer : public ns3::ndn::App
+  class Consumer : public ns3::ndn::App
   {
     public:
       static ns3::TypeId
@@ -49,28 +49,34 @@ namespace ndntac
       void
       StopApplication() override;
 
+      void
+      OnData( shared_ptr< const ndn::Data > data ) override;
+
     private:
 
       void
       sendNext();
 
       bool
-      hasAuth( cosnt Name& name );
+      hasAuth( const ndn::Name& name );
 
       void
-      requestAuth( const Name& name );
+      requestAuth( const ndn::Name& name );
 
       void
-      requestData( const Name& name );
+      requestData( const ndn::Name& name );
+
+      void
+      parseKnownProducers( const string& plist );
 
     private:
             TxQueue m_queue;
-            std::queue< ndn::Interest > m_interest_queue;
-            std::vecotr< ndn::Name >    m_known_producers;
+            std::queue< shared_ptr< ndn::Interest > > m_interest_queue;
+            std::vector< ndn::Name >                  m_known_producers;
             ns3::Time m_min_interval;
             ns3::Time m_max_interval;
             string m_known_producers_list;
-            std::map< ndn::Name, AuthTag > m_auth_tags;
+            std::map< ndn::Name, ndn::AuthTag > m_auth_tags;
             uint32_t m_instance_id;
 
             static uint32_t s_instance_id;
