@@ -39,13 +39,6 @@ namespace ndntac
       void
       OnInterest( shared_ptr< const ndn::Interest> interest ) override;
 
-      // need access to incoming face of interest, if we .sendData() to
-      // m_face it will just be sent back to us since m_face is our own face
-      void
-      onIncomingInterest( shared_ptr< const ndn::Interest > interest,
-                          ns3::Ptr< ns3::ndn::App > app,
-                          shared_ptr< nfd::Face > face);
-
     protected:
       void
       StartApplication() override;
@@ -53,12 +46,12 @@ namespace ndntac
       StopApplication() override;
 
     private:
-       void
-       makeProducers( const string path,
-                std::map< ndn::Name, shared_ptr< DataProducer > > container );
+     void
+     makeProducers( const string path,
+              std::map< ndn::Name, shared_ptr< DataProducer > > container );
 
-       shared_ptr< ndn::Data >
-       makeAuthDenial( const ndn::Data& data );
+     shared_ptr< ndn::Data >
+     makeAuthDenial( const ndn::Data& data );
 
     private:
             TxQueue m_queue;

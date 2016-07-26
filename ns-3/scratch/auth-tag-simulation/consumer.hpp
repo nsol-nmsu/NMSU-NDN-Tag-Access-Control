@@ -42,15 +42,6 @@ namespace ndntac
 
       Consumer();
 
-      void
-      OnInterest( shared_ptr< const ndn::Interest> interest ) override;
-
-      // need access to incoming face of interest, if we .sendData() to
-      // m_face it will just be sent back to us since m_face is our own face
-      void
-      onIncomingData( shared_ptr< const ndn::Interest > interest,
-                          ns3::Ptr< ns3::ndn::App > app,
-                          shared_ptr< nfd::Face > face);
 
     protected:
       void
@@ -59,23 +50,33 @@ namespace ndntac
       StopApplication() override;
 
     private:
-       void
-       makeProducers( const string path,
-                std::map< ndn::Name, shared_ptr< DataProducer > > container );
 
-       shared_ptr< ndn::Data >
-       makeAuthDenial( const ndn::Data& data );
+      void
+      sendNext();
+
+      bool
+      hasAuth( cosnt Name& name );
+
+      void
+      requestAuth( const Name& name );
+
+      void
+      requestData( const Name& name );
 
     private:
             TxQueue m_queue;
-            string m_dir;
-            std::map< ndn::Name, shared_ptr< DataProducer > > m_producers;
+            std::queue< ndn::Interest > m_interest_queue;
+            std::vecotr< ndn::Name >    m_known_producers;
+            ns3::Time m_min_interval;
+            ns3::Time m_max_interval;
+            string m_known_producers_list;
+            std::map< ndn::Name, AuthTag > m_auth_tags;
             uint32_t m_instance_id;
 
             static uint32_t s_instance_id;
-            static const ns3::Time s_producer_signature_delay;
-            static const ns3::Time s_producer_bloom_delay;
-            static const ns3::Time s_producer_interest_delay;
+            static const ns3::Time s_consumer_signature_delay;
+            static const ns3::Time s_consumer_bloom_delay;
+            static const ns3::Time s_consumer_interest_delay;
     };
 
     NS_OBJECT_ENSURE_REGISTERED(Consumer);

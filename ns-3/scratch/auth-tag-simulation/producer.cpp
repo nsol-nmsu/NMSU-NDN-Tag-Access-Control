@@ -60,45 +60,45 @@ namespace ndntac
       // access level of 0 does not need tag
       if( data->getAccessLevel() == 0 )
       {
-        m_queue.sendData( m_face, data );
+        m_queue.receiveData( m_face, data );
         return;
       }
 
       // tags with invalid access level are refused
       if( data->getAccessLevel() > tag.getAccessLevel() )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
 
       // tags with expried interest are refused
       if( tag.isExpired() )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
 
       // tags with wrong prefixes are refused
       if( tag.getPrefix() != m_dir )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
 
       // tags with non matching key locators are refused
       if( !data->getSignature().hasKeyLocator() )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
       if( tag.getKeyLocator() != data->getSignature().getKeyLocator() )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
 
@@ -109,8 +109,8 @@ namespace ndntac
       // tags with unmatching route hash are refused
       if( tag.getRouteHash() != interest->getRouteHash() )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                             makeAuthDenial( *data ) );
         return;
       }
 
@@ -121,22 +121,13 @@ namespace ndntac
       m_queue.delay( s_producer_signature_delay );
       if( tag.getSignature().getValue().value_size() == 0 )
       {
-        m_queue.sendData( m_face,
-                          makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face,
+                              makeAuthDenial( *data ) );
         return;
       }
 
       // all checks were passed, send data
-      m_queue.sendData( m_face, data );
-  }
-
-  void
-  Producer::onIncomingInterest( shared_ptr< const ndn::Interest > interest,
-                      ns3::Ptr< ns3::ndn::App > app,
-                      shared_ptr< nfd::Face > face)
-  {
-    //test
-    bool my_test = true;
+      m_queue.receiveData( m_face, data );
   }
 
   void
