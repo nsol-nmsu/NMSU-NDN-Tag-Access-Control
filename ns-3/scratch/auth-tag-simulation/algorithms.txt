@@ -1,0 +1,216 @@
+AuthTag Verification -- Producer:
+
+    # make sure our data is compatible with the interest
+    if !interest.matchesData( data )
+    {
+        exit()
+    }
+    
+    # access level of 0 is open to all, no authorization required
+    if data.getAccessLevel() == 0
+    {
+        send( data )
+        exit()
+    }
+    
+    # ensure appropriate access level
+    if data.getAccessLevel() > tag.getAccessLevel()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure tag freshness
+    if tag.isExpired()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure appropriate tag prefix/provider
+    if !tag.getPrefix().isPrefixOf( data.getName() )
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure that the tag key locator ( plain public key in this case )
+    # matches the data's key locator
+    if tag.getKeyLocator() != data.getKeyLocator()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # compare authorized route with actual route
+    # this is where traitor tracing should happen when implemented
+    if tag.getRouteHash() != interest.getRouteHash()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # check if we already have the tag cached
+    if auth_cache.contains( tag )
+    {
+        # if so no need for signature verification
+        send( data )
+        exit()
+    }
+    
+    # verify tag signature
+    if !verifier.verify( tag )
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # add tag to auth cache
+    auth_cache.insert( tag )
+    
+    # send data
+    send( data )
+    exit()
+
+===================================================================
+
+AuthTag Verification -- Routers:
+
+    # only treat interests special if we have the data cached
+    if !Cs.contains( interest )
+    {
+        # goto normal router procedures
+        ...
+    }
+    
+    # access level of 0 is free for all, no auth required
+    if data.getAccessLevel() == 0
+    {
+        send( data )
+        exit()
+    }
+    
+    # ensure appropriate access level
+    if data.getAccessLevel() > tag.getAccessLevel()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure tag freshness
+    if tag.isExpired()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure proper tag prefix/provider
+    if !tag.getPrefix().isPrefixOf( data.getName() )
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure matching key locator
+    if tag.getKeyLocator() != data.getKeyLocator()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # ensure authentic route hash, this is where traitor tracing might occur
+    if tag.getRouteHash() != interest.getRouteHash()
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # only verify signatures with probability equivalent to the opposite
+    # probability of the interest's AuthValidityProbability
+    if rand_uint32() < interest.getAuthValidityProbability()
+    {
+        # if we aren't gonna validate the signature, then just send the data
+        send( data )
+        exit()
+    }
+    
+    # check if we have tag cached already
+    if auth_cache.contains( tag )
+    {
+        # if so then no need for signature verification
+        send( data )
+        exit()
+    }
+    
+    # if we are gonna verify the signature then do it
+    if !verifier.verify( tag )
+    {
+        send( denial( data ) )
+        exit()
+    }
+    
+    # add tag to auth cache
+    auth_cache.insert( tag )
+    
+    # send data
+    send( data )
+    exit()
+
+====================================================================
+
+AuthTag Verification -- Edge Routers:
+
+    # I haven't written the code for this one yet, so it might change
+    # a little
+    
+    # check for bloom filter saturation
+    if pos_auth_cache.effective_fpp() > 1e-10
+    {
+        pos_auth_cache.clear()
+    }
+    if neg_auth_cache.effective_fpp() > 1e-10
+    {
+        neg_auth_cache.clear()
+    }
+    
+    # if the interest's tag is cached in positive bloom filter
+    # then set interest's auth prob appropriately.
+    # Prob will decrease as filter is saturated.
+    if pos_auth_cache.contains( tag )
+    {
+        var prob = ( 1.0 - edge_auth_cache.effective_fpp() ) * 2^32
+        interest.setAuthValidityProbability( prob )
+        
+        # goto normal router procedures ( previous algorithm )
+        ...
+    }
+    
+    # if not in positive cache but in negative cache then we verify the
+    # tag signature ourselves
+    if neg_auth_cache.contains( tag )
+    {
+        # if tag is valid
+        if verifier.verify( tag )
+        {
+            # add tag to positive cache and set validity prob to max
+            pos_auth_cache.insert( tag )
+            interest.setAuthValidityProbability( 2^32 )
+            
+            # goto normal router procedures ( previous algorithm )
+            ...
+        }
+        # if tag is not valid then reject
+        else
+        {
+            send( nack )
+            exit()
+        }
+    }
+    
+    # if tag is not in either cache set auth prob to 0
+    interest.setAuthValidityProbability( 0 )
+    
+    # continue with normal router operations ( previouse algorithm )
+    ...
+
+========================================================================

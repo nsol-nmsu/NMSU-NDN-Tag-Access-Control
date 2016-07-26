@@ -81,10 +81,9 @@ namespace ndntac
       }
 
       // tags with wrong prefixes are refused
-      if( tag.getPrefix() != m_dir )
+      if( !tag.getPrefix().isPrefixOf( data.getName() ) )
       {
-        m_queue.receiveData( m_face,
-                             makeAuthDenial( *data ) );
+        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
         return;
       }
 
