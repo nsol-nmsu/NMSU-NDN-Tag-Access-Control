@@ -154,22 +154,18 @@ namespace ns3
                       ; it != producer_nodes.end()
                       ; it++ )
                   {
-                     ndn
-                     ::StrategyChoiceHelper
-                     ::Install(*it,
-                               "/",
-                               "/localhost/nfd/strategy/best-route");
+                    ndn
+                    ::StrategyChoiceHelper
+                    ::Install<RouterStrategy>( *it, "/" );
                    }
 
                    for( auto it = consumer_nodes.begin()
                       ; it != consumer_nodes.end()
                       ; it++ )
                   {
-                     ndn
-                     ::StrategyChoiceHelper
-                     ::Install(*it,
-                               "/",
-                               "/localhost/nfd/strategy/best-route");
+                    ndn
+                    ::StrategyChoiceHelper
+                    ::Install<RouterStrategy>( *it, "/" );
                   }
 
 
