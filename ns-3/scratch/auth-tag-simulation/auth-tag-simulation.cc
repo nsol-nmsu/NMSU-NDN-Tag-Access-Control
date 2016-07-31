@@ -198,7 +198,7 @@ namespace ns3
                     helper.SetAttribute( "Directory", StringValue( producer_dir ) );
                     helper.SetAttribute( "Prefix", StringValue( ent->d_name ) );
                     helper.Install( *it );
-                    routing_helper.AddOrigins( producer_dir, *(it++) );
+                    routing_helper.AddOrigins( ent->d_name, *(it++) );
                     if( producer_list.empty() )
                     {
                       producer_list = ent->d_name;

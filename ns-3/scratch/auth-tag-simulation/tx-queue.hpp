@@ -94,56 +94,48 @@ namespace ndntac
         {
           // schedule send interest then schedule next event immediately
           const SendInterestEvent& send_event = boost::get<SendInterestEvent>(event);
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doSendInterest,
-                                    this,
-                                    send_event.first,
-                                    send_event.second );
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doNext,
-                                    this );
+          ns3::Simulator::ScheduleNow( &TxQueue::doSendInterest,
+                                        this,
+                                        send_event.first,
+                                        send_event.second );
+          ns3::Simulator::ScheduleNow( &TxQueue::doNext,
+                                        this );
           break;
         }
         case 1:
         {
           // schedule send interest then schedule next event immediately
           const SendDataEvent& send_event = boost::get<SendDataEvent>(event);
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doSendData,
-                                    this,
-                                    send_event.first,
-                                    send_event.second );
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doNext,
-                                    this );
+          ns3::Simulator::ScheduleNow( &TxQueue::doSendData,
+                                        this,
+                                        send_event.first,
+                                        send_event.second );
+          ns3::Simulator::ScheduleNow( &TxQueue::doNext,
+                                        this );
           break;
         }
         case 2:
         {
           // schedule receive interest then schedule next event immediately
           const ReceiveInterestEvent& receive_event = boost::get<ReceiveInterestEvent>(event);
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doReceiveInterest,
-                                    this,
-                                    std::get<0>(receive_event),
-                                    std::get<1>(receive_event ) );
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doNext,
-                                    this );
+          ns3::Simulator::ScheduleNow( &TxQueue::doReceiveInterest,
+                                        this,
+                                        std::get<0>(receive_event),
+                                        std::get<1>(receive_event ) );
+          ns3::Simulator::ScheduleNow( &TxQueue::doNext,
+                                        this );
           break;
         }
         case 3:
         {
           // schedule receive data then schedule next event immediately
           const ReceiveDataEvent& receive_event = boost::get<ReceiveDataEvent>(event);
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doReceiveData,
-                                    this,
-                                    std::get<0>(receive_event),
-                                    std::get<1>(receive_event ) );
-          ns3::Simulator::Schedule( ns3::Seconds( 0 ),
-                                    &TxQueue::doNext,
-                                    this );
+          ns3::Simulator::ScheduleNow( &TxQueue::doReceiveData,
+                                        this,
+                                        std::get<0>(receive_event),
+                                        std::get<1>(receive_event ) );
+          ns3::Simulator::ScheduleNow( &TxQueue::doNext,
+                                        this );
           break;
         }
       case 4:
