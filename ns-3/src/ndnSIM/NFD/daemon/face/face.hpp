@@ -58,6 +58,12 @@ const FaceId FACEID_RESERVED_MAX = 255;
 * methods have been changed from protected to public.
 **/
 
+/**
+* @class Face
+* This class has been modified by Ray Stubbs [stubbs.ray@gmail.com] to
+* add route hashing feature to library.
+**/
+
 /** \brief represents a face
  */
 class Face : noncopyable, public enable_shared_from_this<Face>

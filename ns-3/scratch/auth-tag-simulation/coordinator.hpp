@@ -14,17 +14,15 @@
 
 namespace ndntac
 {
-    using namespace ndn;
-    using namespace std;
 
    namespace Coordinator
    {
-       vector< uint32_t >    producers;
-       vector< uint32_t >    consumers;
-       vector< uint32_t >    routers;
-       vector< Name >        producers_started;
-       vector< uint32_t >    consumers_started;
-       vector< uint32_t >    routers_started;
+       std::vector< uint32_t >    producers;
+       std::vector< uint32_t >    consumers;
+       std::vector< uint32_t >    routers;
+       std::vector< ndn::Name >   producers_started;
+       std::vector< uint32_t >    consumers_started;
+       std::vector< uint32_t >    routers_started;
 
        // node registration adn deregistration
        void     addProducer( uint8_t producer_instance );
@@ -35,10 +33,10 @@ namespace ndntac
        void     removeRouter( uint32_t router_instance );
 
        // initialization notifiers and finalization
-       void     producerStarted( const Name& producer );
+       void     producerStarted( const ndn::Name& producer );
        void     consumerStarted( uint32_t consumer );
        void     routerStarted( uint32_t router );
-       void     producerStopped( uint8_t producer_instance );
+       void     producerStopped( const ndn::Name& producer_instance );
        void     consumerStopped( uint32_t consumer_instance );
        void     routerStopped( uint32_t router_instance );
 
@@ -63,85 +61,82 @@ namespace ndntac
        vector<uint32_t>::const_iterator endRouters();
 
        // producer notifiers
-       void producerReceivedRequest( const Name& producer_name,
-                                     const Name& request_name );
-       void producerDeniedRequest( const Name& producer_name,
-                                   const Name& request_name,
-                                   const string& why );
-       void producerSatisfiedRequest( const Name& producer_name,
-                                      const Name& request_name );
+       void producerReceivedRequest( const ndn::Name& producer_name,
+                                     const ndn::Name& request_name );
+       void producerDeniedRequest( const ndn::Name& producer_name,
+                                   const ndn::Name& request_name,
+                                   const std::string& why );
+       void producerSatisfiedRequest( const ndn::Name& producer_name,
+                                      const ndn::Name& request_name );
 
-       void producerReceivedAuthRequest( const Name& producer_name,
-                                         const Name& request_name,
-                                         const NdnParameterSet& credentials );
-       void producerDeniedAuthRequest( const Name& producer_name,
-                                       const Name& request_name,
-                                       const string& why,
-                                       const NdnParameterSet& credentials );
-       void producerSatisfiedAuthRequest( const Name& producer_name,
-                                          const Name& request_name,
-                                          const NdnParameterSet& credentials );
-       void producerOther( const Name& producer_name,
-                           const string& msg );
+       void producerReceivedAuthRequest( const ndn::Name& producer_name,
+                                         const ndn::Name& request_name );
+       void producerDeniedAuthRequest( const ndn::Name& producer_name,
+                                       const ndn::Name& request_name,
+                                       const std::string& why);
+       void producerSatisfiedAuthRequest( const ndn::Name& producer_name,
+                                          const ndn::Name& request_name );
+       void producerOther( const ndn::Name& producer_name,
+                           const std::string& msg );
 
        // consumer notifiers
        void consumerSentRequest( uint32_t consumer_instance,
-                                 const Name& request_name );
+                                 const ndn::Name& request_name );
        void consumerRequestSatisfied( uint32_t consumer_instance,
-                                      const Name& request_name );
+                                      const ndn::Name& request_name );
        void consumerRequestRejected( uint32_t consumer_instance,
-                                     const Name& request_name );
+                                     const ndn::Name& request_name );
 
        void consumerRequestedAuth( uint32_t consumer_instance,
-                                   const Name& request_name );
+                                   const ndn::Name& request_name );
        void consumerReceivedAuth( uint32_t consumer_instance,
-                                  const Name& tag_name );
+                                  const ndn::Name& tag_name );
        void consumerAuthDenied( uint32_t consumer_instance,
-                                const Name& request_name );
+                                const ndn::Name& request_name );
 
        void consumerFollowedLink( uint32_t consumer_instance,
-                                  const Name& request_name );
+                                  const ndn::Name& request_name );
 
        void consumerOther( uint8_t consumer_instance,
-                           const string& msg );
+                           const std::string& msg );
 
        // router notifiers
        void routerReceivedRequest( uint32_t router_instance,
-                                   const Name& request_name );
+                                   const ndn::Name& request_name );
        void routerForwardedRequest( uint32_t router_instance,
-                                    const Name& request_name );
+                                    const ndn::Name& request_name );
        void routerDeniedRequest( uint32_t router_instance,
-                                 const Name& request_name,
-                                 const string& why );
+                                 const ndn::Name& request_name,
+                                 const std::string& why );
        void routerSatisfiedRequest( uint32_t router_instance,
-                                    const Name& request_name );
+                                    const ndn::Name& request_name );
 
        void routerRequestedAuth( uint32_t router_instance,
-                                 const Name& request_name );
+                                 const ndn::Name& request_name );
        void routerAuthSatisfied( uint32_t router_instance,
-                                 const Name& request_name );
+                                 const ndn::Name& request_name );
        void routerAuthDenied( uint32_t router_instance,
-                              const Name& request_name );
+                              const ndn::Name& request_name );
 
        void routerOther( uint32_t router_instance,
-                         const string& msg );
+                         const std::string& msg );
 
        // edge router
        void edgeSettingValidityProbability( uint32_t edge_instance,
-                                            const Name& request_name,
+                                            const ndn::Name& request_name,
                                             uint32_t prob,
-                                            const string& msg );
+                                            const std::string& msg );
        void edgeDroppingRequest( uint32_t edge_instance,
-                                 const Name& request_name,
-                                 const string& why );
+                                 const ndn::Name& request_name,
+                                 const std::string& why );
        void edgeCachingTag( uint32_t edge_instance,
-                            const Name& request_name,
-                            const string& filter_name );
+                            const ndn::Name& request_name,
+                            const std::string& filter_name );
 
        // simulation notifiers
        void simulationStarted( bool enable_logging );
        void simulationFinished();
-       void simulationOther( const string& msg );
+       void simulationOther( const std::string& msg );
    }
 
 }

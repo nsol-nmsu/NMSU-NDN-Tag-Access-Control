@@ -1,4 +1,5 @@
 #include "consumer.hpp"
+#include "coordinator.hpp"
 #include "ndn-cxx/auth-tag.hpp"
 #include <boost/regex.hpp>
 
@@ -9,23 +10,25 @@ namespace ndntac
   const ns3::Time Consumer::s_consumer_interest_delay = ns3::MilliSeconds( 100 );
   uint32_t Consumer::s_instance_id = 0;
 
+  NS_OBJECT_ENSURE_REGISTERED(Consumer);
+
   ns3::TypeId
   Consumer::GetTypeId()
   {
           static ns3::TypeId tid
-              = ns3::TypeId("ndntac::Producer")
+              = ns3::TypeId("ndntac::Consumer")
                 .SetParent<ns3::ndn::App>()
                 .AddConstructor<Consumer>()
                 .AddAttribute(
                       "IntervalMin",
                       "Shortest amount of time between interests",
-                       ns3::StringValue("0.1s"),
+                       ns3::StringValue("0.01s"),
                        MakeTimeAccessor(&Consumer::m_min_interval),
                        ns3::MakeTimeChecker() )
                .AddAttribute(
                      "IntervalMax",
                      "Longest amount of time between interests",
-                      ns3::StringValue("0.2s"),
+                      ns3::StringValue("0.1s"),
                       MakeTimeAccessor(&Consumer::m_max_interval),
                       ns3::MakeTimeChecker() )
               .AddAttribute(
@@ -40,6 +43,7 @@ namespace ndntac
   Consumer::Consumer()
   {
     m_instance_id = s_instance_id++;
+        Coordinator::addConsumer( m_instance_id );
   }
 
   void
@@ -47,12 +51,14 @@ namespace ndntac
   {
     App::StartApplication();
     parseKnownProducers( m_known_producers_list );
-
+    sendNext();
+    Coordinator::consumerStarted( m_instance_id );
   }
 
   void
   Consumer::StopApplication()
   {
+    Coordinator::consumerStopped( m_instance_id );
     App::StopApplication();
   }
 
@@ -60,21 +66,24 @@ namespace ndntac
   Consumer::OnData( shared_ptr< const ndn::Data > data )
   {
 
-    // if it's an authentication response then parse
+    // if it's an authentication response then parse and handle
     if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
     {
         const ndn::Block& payload = data->getContent().blockFromValue();
         ndn::AuthTag tag( payload );
         m_auth_tags[data->getName().getPrefix(1)] = tag;
+        Coordinator::consumerReceivedAuth( m_instance_id, data->getName() );
         return;
     }
 
     if( data->getContentType() == ndn::tlv::ContentType_Nack )
     {
+        Coordinator::consumerRequestRejected( m_instance_id, data->getName() );
         return;
     }
 
     // look for links
+    Coordinator::consumerRequestSatisfied( m_instance_id, data->getName() );
     const ndn::Block& payload = data->getContent();
     string content( (char*)payload.wire(), payload.size() );
 
@@ -86,6 +95,7 @@ namespace ndntac
     auto end = boost::sregex_iterator();
     for( auto it = begin ; it != end ; it++ )
     {
+        Coordinator::consumerFollowedLink( m_instance_id, (*it)[1].str() );
         if( hasAuth( (*it)[1].str() ) )
         {
           requestData( (*it)[1].str() );
@@ -116,6 +126,7 @@ namespace ndntac
         return;
     }
 
+    Coordinator::consumerSentRequest( m_instance_id, m_interest_queue.front()->getName() );
     m_queue.receiveInterest( m_face, m_interest_queue.front() );
     m_interest_queue.pop();
 

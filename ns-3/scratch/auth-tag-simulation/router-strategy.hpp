@@ -16,6 +16,7 @@
 #include "ns3/ndnSIM/NFD/daemon/fw/best-route-strategy.hpp"
 #include "ns3/ndnSIM/NFD/daemon/face/face.hpp"
 #include "tx-queue.hpp"
+#include "auth-cache.hpp"
 
 
 #ifndef ROUTER_STRATEGY__INCLUDED
@@ -32,10 +33,6 @@ namespace ndntac
 
       bool
       onIncomingInterest( nfd::Face& face, const ndn::Interest& interest )
-      override;
-
-      bool
-      onIncomingData( nfd::Face& face, const ndn::Data& data )
       override;
 
       void
@@ -55,9 +52,12 @@ namespace ndntac
 
     public:
        static const ndn::Name STRATEGY_NAME;
-    private:
+    protected:
             TxQueue m_queue;
+            AuthCache m_auth_cache;
             nfd::Forwarder& m_forwarder;
+
+    private:
             uint32_t m_instance_id;
 
             static uint32_t s_instance_id;

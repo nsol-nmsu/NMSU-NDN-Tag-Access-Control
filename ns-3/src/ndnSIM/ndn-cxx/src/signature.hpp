@@ -29,8 +29,7 @@ namespace ndn {
 
 /**
 * @class Signature
-* This class has been modified to add the getSignatureInfo() and setSignatureInfo()
-* methods.
+* This class has been modified by Ray Stubbs [stubbs.ray@gmail.com]
 **/
 
 /**
@@ -56,13 +55,13 @@ public:
     Sha256WithEcdsa = tlv::SignatureSha256WithEcdsa
   };
 
-  Signature() = default;
+  Signature();
 
   explicit
-  Signature(const Block& info, const Block& value = Block());
+  Signature(const Block& info, const Block& value = Block( tlv::SignatureValue));
 
   explicit
-  Signature(const SignatureInfo& info, const Block& value = Block());
+  Signature(const SignatureInfo& info, const Block& value = Block( tlv::SignatureValue ) );
 
   operator bool() const
   {

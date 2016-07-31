@@ -24,12 +24,13 @@ namespace ndn
     {
         /**
         * AUTH-TAG  ::= AUTH_TAG-TYPE TLV-LENGTH
-        *                   Name              -- Producer's prefix
-        *                   AccessLevel
-        *                   RouteHash           -- Route hash for route from comsumer to edge router
-        *                   KeyLocator          -- Consumer Locator
-        *                   SignatureInfo
-        *                   Signature
+        *                   SignedPortion
+        *                       Name              -- Producer's prefix
+        *                       AccessLevel
+        *                       RouteHash           -- Route hash for route from comsumer to edge router
+        *                       KeyLocator          -- Consumer Locator
+        *                       SignatureInfo
+        *                   SignatureValue
         * ( reverse encoding )
         **/
 
@@ -97,15 +98,19 @@ namespace ndn
 
         /**
         * AUTH-TAG  ::= AUTH_TAG-TYPE TLV-LENGTH
-        *                   Name                -- Producer's prefix
-        *                   AccessLevel
-        *                   RouteHash           -- Route hash for route from comsumer to edge router
-        *                   KeyLocator          -- Consumer Locator
-        *                   SignatureInfo
-        *                   Signature
+        *                   SignedPortion
+        *                       Name              -- Producer's prefix
+        *                       AccessLevel
+        *                       RouteHash           -- Route hash for route from comsumer to edge router
+        *                       KeyLocator          -- Consumer Locator
+        *                       SignatureInfo
+        *                   SignatureValue
         **/
+        if (m_wire.type() != tlv::AuthTag )
+          BOOST_THROW_EXCEPTION(Error("Unexpected TLV number when decoding AuthTag"));
 
         const Block& sportion = m_wire.get( tlv::SignedPortion );
+        sportion.parse();
 
         // Name -- Producer's prefix
         m_prefix.wireDecode( sportion.get( tlv::Name ) );

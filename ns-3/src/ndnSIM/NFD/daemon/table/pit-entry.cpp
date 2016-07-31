@@ -25,6 +25,7 @@
 
 #include "pit-entry.hpp"
 #include <algorithm>
+#include <memory>
 
 namespace nfd {
 namespace pit {
@@ -130,20 +131,36 @@ Entry::findNonce(uint32_t nonce, const Face& face) const
 InRecordCollection::iterator
 Entry::insertOrUpdateInRecord(shared_ptr<Face> face, const Interest& interest)
 {
-  auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
-    [&face] (const InRecord& inRecord) { return inRecord.getFace() == face; });
-  if (it == m_inRecords.end()) {
-    m_inRecords.emplace_front(face);
-    it = m_inRecords.begin();
+  // if interest matches our interest's auth tag then insert in record into
+  // this pit entry
+  if( interest.getAuthTag() == getInterest().getAuthTag() )
+  {
+    auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
+      [&face] (const InRecord& inRecord) { return inRecord.getFace() == face; });
+    if (it == m_inRecords.end()) {
+      m_inRecords.emplace_front(face);
+      it = m_inRecords.begin();
+    }
+    it->update(interest);
+    return it;
   }
 
-  it->update(interest);
-  return it;
+  // otherwise look for a matching entry, if none then add entry to end
+  if( m_related_entry == NULL )
+  {
+    m_related_entry = std::make_shared< Entry >( interest );
+    return m_related_entry->insertOrUpdateInRecord( face, interest );
+  }
+  else
+  {
+    return m_related_entry->insertOrUpdateInRecord( face, interest );
+  }
 }
 
 InRecordCollection::const_iterator
 Entry::getInRecord(const Face& face) const
 {
+  // only works on top level entry
   return std::find_if(m_inRecords.begin(), m_inRecords.end(),
     [&face] (const InRecord& inRecord) { return inRecord.getFace().get() == &face; });
 }
@@ -151,26 +168,46 @@ Entry::getInRecord(const Face& face) const
 void
 Entry::deleteInRecords()
 {
+  // only works for top level entry
   m_inRecords.clear();
 }
 
 OutRecordCollection::iterator
 Entry::insertOrUpdateOutRecord(shared_ptr<Face> face, const Interest& interest)
 {
-  auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
-    [&face] (const OutRecord& outRecord) { return outRecord.getFace() == face; });
-  if (it == m_outRecords.end()) {
-    m_outRecords.emplace_front(face);
-    it = m_outRecords.begin();
+
+  // if interest matches our interest's auth tag then insert in record into
+  // this pit entry
+  if( interest.getAuthTag() == getInterest().getAuthTag() )
+  {
+    auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
+      [&face] (const OutRecord& outRecord) { return outRecord.getFace() == face; });
+    if (it == m_outRecords.end()) {
+      m_outRecords.emplace_front(face);
+      it = m_outRecords.begin();
+    }
+
+    it->update(interest);
+    return it;
   }
 
-  it->update(interest);
-  return it;
+  // otherwise look for a matching entry, if none then add entry to end
+  if( m_related_entry == NULL )
+  {
+    m_related_entry =  std::make_shared<Entry>( interest );
+    return m_related_entry->insertOrUpdateOutRecord( face, interest );
+  }
+  else
+  {
+    return m_related_entry->insertOrUpdateOutRecord( face, interest );
+  }
+
 }
 
 OutRecordCollection::const_iterator
 Entry::getOutRecord(const Face& face) const
 {
+  // only workds for top level entry
   return std::find_if(m_outRecords.begin(), m_outRecords.end(),
     [&face] (const OutRecord& outRecord) { return outRecord.getFace().get() == &face; });
 }
@@ -178,6 +215,7 @@ Entry::getOutRecord(const Face& face) const
 void
 Entry::deleteOutRecord(const Face& face)
 {
+  // only works for top level entry
   auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
     [&face] (const OutRecord& outRecord) { return outRecord.getFace().get() == &face; });
   if (it != m_outRecords.end()) {
@@ -192,6 +230,36 @@ Entry::hasUnexpiredOutRecords() const
 
   return std::any_of(m_outRecords.begin(), m_outRecords.end(),
     [&now] (const OutRecord& outRecord) { return outRecord.getExpiry() >= now; });
+}
+
+/**
+* @brief Push related entry to the related entries list
+**/
+void
+Entry::pushRelatedEntry( std::shared_ptr< Entry > entry )
+{
+  if( m_related_entry == NULL )
+  {
+    m_related_entry = entry;
+    return;
+  }
+
+  m_related_entry->pushRelatedEntry( entry );
+}
+
+/**
+* @brief Pop first related entry off related enties list to replate current
+*        entry.
+* @return True if entry was poped, false if nothing to pop in list
+**/
+bool
+Entry::popRelatedEntry()
+{
+  if( m_related_entry == NULL )
+    return false;
+
+  *this = *m_related_entry;
+  return true;
 }
 
 } // namespace pit

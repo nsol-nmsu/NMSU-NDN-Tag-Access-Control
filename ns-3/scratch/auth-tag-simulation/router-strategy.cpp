@@ -1,4 +1,5 @@
 #include "router-strategy.hpp"
+#include "coordinator.hpp"
 
 namespace ndntac
 {
@@ -16,9 +17,11 @@ namespace ndntac
   RouterStrategy::RouterStrategy( nfd::Forwarder& forwarder,
                                   const ndn::Name& name )
                                     : BestRouteStrategy( forwarder, name )
+                                    , m_auth_cache( 1e-10, 10000 )
                                     , m_forwarder( forwarder )
   {
     m_instance_id = s_instance_id++;
+    Coordinator::addRouter( m_instance_id );
   }
 
   bool
@@ -26,6 +29,8 @@ namespace ndntac
                                       const ndn::Interest& interest )
   {
     bool handled_interest = false;
+
+    Coordinator::routerReceivedRequest( m_instance_id, interest.getName() );
 
     // every interest takes some amount of processing time
     // for now we simulate this with a constant delay
@@ -48,12 +53,6 @@ namespace ndntac
     // handle interest appropriately
     m_forwarder.getCs().find( interest, on_hit, on_miss );
     return handled_interest;
-  }
-
-  bool
-  RouterStrategy::onIncomingData( nfd::Face& face, const ndn::Data& data )
-  {
-    return false;
   }
 
   void
@@ -87,14 +86,18 @@ namespace ndntac
 
    void RouterStrategy::onDataHit( nfd::Face& face,
                    const ndn::Interest& interest,
-                   const ndn::Data& data)
+                   const ndn::Data& const_data)
    {
+     // unconstify data
+     ndn::Data data = const_data;
+
      // if we have the data, verify the auth tag
      const ndn::AuthTag& tag = interest.getAuthTag();
 
      // access level of 0 does not need tag
      if( data.getAccessLevel() == 0 )
      {
+       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
        m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
        return;
      }
@@ -102,14 +105,20 @@ namespace ndntac
      // tags with invalid access level are refused
      if( data.getAccessLevel() > tag.getAccessLevel() )
      {
+       Coordinator::routerDeniedRequest( m_instance_id,
+                                         interest.getName(),
+                                         "AuthTag access level is too low");
        m_queue.sendData( face.shared_from_this(),
                          makeAuthDenial( data ) );
        return;
      }
 
-     // tags with expried interest are refused
+     // interests with expired tags are refused
      if( tag.isExpired() )
      {
+       Coordinator::routerDeniedRequest( m_instance_id,
+                                         interest.getName(),
+                                         "AuthTag is expired");
        m_queue.sendData( face.shared_from_this(),
                          makeAuthDenial( data ) );
        return;
@@ -118,6 +127,9 @@ namespace ndntac
      // tags with wrong prefixes are refused
      if( !tag.getPrefix().isPrefixOf( data.getName() ) )
      {
+       Coordinator::routerDeniedRequest( m_instance_id,
+                                         interest.getName(),
+                                         "AuthTag prefix does not match data" );
        m_queue.sendData( face.shared_from_this(),
                          makeAuthDenial( data ) );
        return;
@@ -126,24 +138,19 @@ namespace ndntac
      // tags with non matching key locators are refused
      if( !data.getSignature().hasKeyLocator() )
      {
+       Coordinator::routerDeniedRequest( m_instance_id,
+                                         interest.getName(),
+                                         "Requested data has no key locator");
        m_queue.sendData( face.shared_from_this(),
                          makeAuthDenial( data ) );
        return;
      }
      if( tag.getKeyLocator() != data.getSignature().getKeyLocator() )
      {
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-
-     // check that data actually matches interest
-     if( !interest.matchesData( data ) )
-       return;
-
-     // tags with unmatching route hash are refused
-     if( tag.getRouteHash() != interest.getRouteHash() )
-     {
+       Coordinator::routerDeniedRequest( m_instance_id,
+                                         interest.getName(),
+                                         "AuthTag key locator does not match "
+                                         "data key locator" );
        m_queue.sendData( face.shared_from_this(),
                          makeAuthDenial( data ) );
        return;
@@ -153,8 +160,27 @@ namespace ndntac
      // the opposite probability of the interest's AuthValidityProbability
      if( (uint32_t)rand() < interest.getAuthValidityProb() )
      {
+       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
        m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
        return;
+     }
+
+     // set NoReCache tag appropriately
+     if( interest.getAuthValidityProb() > 0 )
+      data.setNoReCacheFlag( true );
+
+     // AuthValidityProbability of 0 indicates that the edge router's bloom
+     // filters didn't have any information on the tag so we lookup
+     // the tag in our bloom if prob is 0
+     if( interest.getAuthValidityProb() == 0 )
+     {
+       m_queue.delay( s_router_bloom_delay );
+       if( m_auth_cache.contains( tag ) )
+       {
+         Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
+         m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
+         return;
+       }
      }
 
      // verify signature, we simulate actual verification delay by
@@ -162,20 +188,25 @@ namespace ndntac
      // isn't empty, sine we don't need to actually validate for the
      // simulation
      m_queue.delay( s_router_signature_delay );
-     if( tag.getSignature().getValue().value_size() == 0 )
+     if( tag.getSignature().getValue().value_size() > 0 )
      {
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
+       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
+       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
+       m_auth_cache.insert( tag );
        return;
      }
 
-     // all checks were passed, send data
-     m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
+     // bad signature
+     Coordinator::routerDeniedRequest( m_instance_id,
+                                       interest.getName(),
+                                       "Invalid AuthTag signature" );
+     m_queue.sendData( face.shared_from_this(), makeAuthDenial( data ) );
  }
 
  void RouterStrategy::onDataMiss( nfd::Face& face,
-                  const ndn::Interest& interest )
+                                  const ndn::Interest& interest )
  {
+   Coordinator::routerForwardedRequest( m_instance_id, interest.getName() );
    // NADA
  }
 }

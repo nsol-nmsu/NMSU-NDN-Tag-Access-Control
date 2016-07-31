@@ -7,7 +7,9 @@
 * specifying a producer directory to to simulate.  The app will
 * make data of all files under the directory, which will be
 * named [Directory]/[Fle-Path].  The producer also provides AuthTags
-* for its content, which are named [Directory]/auth.
+* for its content, which are named [Directory]/auth.  An optional
+* 'Prefix' attribute is also available, which can be used to replace
+* the directory as the producer's prefix.
 *
 * @author Ray Stubbs [stubbs.ray@gmail.com]
 **/
@@ -21,6 +23,7 @@
 #include "file-data-producer.hpp"
 #include "auth-data-producer.hpp"
 #include "tx-queue.hpp"
+#include "auth-cache.hpp"
 
 
 #ifndef PRODUCER__INCLUDED
@@ -47,15 +50,18 @@ namespace ndntac
 
     private:
      void
-     makeProducers( const string path,
+     makeProducers( const string& dir, const string& path,
               std::map< ndn::Name, shared_ptr< DataProducer > > container );
 
      shared_ptr< ndn::Data >
      makeAuthDenial( const ndn::Data& data );
 
     private:
+            AuthCache m_auth_cache;
             TxQueue m_queue;
             string m_dir;
+            string m_prefix_str;
+            ndn::Name m_prefix;
             std::map< ndn::Name, shared_ptr< DataProducer > > m_producers;
             uint32_t m_instance_id;
 
@@ -64,8 +70,6 @@ namespace ndntac
             static const ns3::Time s_producer_bloom_delay;
             static const ns3::Time s_producer_interest_delay;
     };
-
-    NS_OBJECT_ENSURE_REGISTERED(Producer);
 
 };
 

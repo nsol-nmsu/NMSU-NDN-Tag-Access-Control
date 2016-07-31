@@ -217,16 +217,20 @@ public: // Name and guiders
   }
 
   Interest&
-  setRouteHash( uint64_t hash )
+  updateRouteHash( uint64_t link_id )
   {
-    m_route_hash = hash;
-    m_wire.reset();
+    m_route_hash ^= link_id;
     return *this;
   }
 
   const Block&
   getPayload() const
   {
+    if (m_payload.empty())
+      m_payload = makeEmptyBlock(tlv::Content);
+
+    if (!m_payload.hasWire())
+      m_payload.encode();
     return m_payload;
   }
 
@@ -241,6 +245,8 @@ public: // Name and guiders
   Interest&
   setSignature( const Signature& sig )
   {
+    if (sig.getValue().type() != tlv::SignatureValue )
+      BOOST_THROW_EXCEPTION(Error("Expected Block of type tlv::SignatureValue"));
     m_signature = sig;
     m_wire.reset();
     return *this;
@@ -255,6 +261,8 @@ public: // Name and guiders
   const Interest&
   setSignatureValue( const Block& signatureValue )
   {
+    if (signatureValue.type() != tlv::SignatureValue )
+      BOOST_THROW_EXCEPTION(Error("Expected Block of type tlv::SignatureValue"));
     m_signature.setValue( signatureValue );
     m_wire.reset();
     return *this;
@@ -464,7 +472,7 @@ private:
   Signature m_signature;
   uint32_t m_auth_validity_prob = 0;
   uint64_t m_route_hash = 0;
-  Block    m_payload;
+  mutable Block m_payload;
 
   mutable Block m_wire;
 

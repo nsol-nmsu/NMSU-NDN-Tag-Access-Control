@@ -75,7 +75,8 @@ Pit::insert(const Interest& interest)
   auto it = std::find_if(pitEntries.begin(), pitEntries.end(),
                          [&interest] (const shared_ptr<pit::Entry>& entry) {
                            return entry->getInterest().getName() == interest.getName() &&
-                                  entry->getInterest().getSelectors() == interest.getSelectors();
+                                  entry->getInterest().getSelectors() == interest.getSelectors() &&
+                                  entry->getInterest().getPayload() == interest.getPayload();
                          });
   if (it != pitEntries.end()) {
     return { *it, false };
@@ -107,13 +108,16 @@ Pit::findAllDataMatches(const Data& data) const
 void
 Pit::erase(shared_ptr<pit::Entry> pitEntry)
 {
-  shared_ptr<name_tree::Entry> nameTreeEntry = m_nameTree.get(*pitEntry);
-  BOOST_ASSERT(static_cast<bool>(nameTreeEntry));
+  if( !pitEntry->popRelatedEntry() )
+  {
+    shared_ptr<name_tree::Entry> nameTreeEntry = m_nameTree.get(*pitEntry);
+    BOOST_ASSERT(static_cast<bool>(nameTreeEntry));
 
-  nameTreeEntry->erasePitEntry(pitEntry);
-  m_nameTree.eraseEntryIfEmpty(nameTreeEntry);
+    nameTreeEntry->erasePitEntry(pitEntry);
+    m_nameTree.eraseEntryIfEmpty(nameTreeEntry);
 
-  --m_nItems;
+    --m_nItems;
+  }
 }
 
 Pit::const_iterator

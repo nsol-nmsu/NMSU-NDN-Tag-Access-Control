@@ -1,10 +1,13 @@
-#include "Coordinator.hpp"
+#include "coordinator.hpp"
 #include <mutex>
 
 namespace ndntac
 {
    namespace Coordinator
    {
+       using namespace std;
+       using namespace ndn;
+
        ofstream              log_file;
        recursive_mutex       lock;
        uint64_t              pending;
@@ -69,17 +72,6 @@ namespace ndntac
             lock.lock();
             producers_started.push_back( producer );
             lock.unlock();
-       }
-
-       NdnSigner* producerSigner( const Name& producer )
-       {
-            lock.lock();
-
-            // make signer if not already available
-            NdnSigner* ret = &producer_signers[producer];
-
-            lock.unlock();
-            return ret;
        }
 
        void consumerStarted( uint32_t consumer )
@@ -269,8 +261,7 @@ namespace ndntac
       }
 
       void producerReceivedAuthRequest( const Name& producer_name,
-                                        const Name& request_name,
-                                        const NdnParameterSet& credentials )
+                                        const Name& request_name )
       {
             if( logging_enabled )
             {
@@ -280,24 +271,13 @@ namespace ndntac
                          << "    time     = " <<  time::system_clock::now() << endl
                          << "    producer = " << producer_name.toUri() << endl
                          << "    request  = " << request_name.toUri() << endl
-                         << "    username = " <<
-                                    ( ( credentials.hasParameter( "username" ) )
-                                      ? credentials.getParameter( "username" )
-                                      : "none" )
-                                    << endl
-                         << "    password = "<<
-                                    ( ( credentials.hasParameter( "password" ) )
-                                      ? credentials.getParameter( "password" )
-                                      : "none" )
-                                    << endl
                          << "}" << endl;
                  lock.unlock();
              }
       }
       void producerDeniedAuthRequest( const Name& producer_name,
                                       const Name& request_name,
-                                      const string& why,
-                                      const NdnParameterSet& credentials )
+                                      const string& why )
       {
             if( logging_enabled )
             {
@@ -307,24 +287,13 @@ namespace ndntac
                          << "    time     = " <<  time::system_clock::now() << endl
                          << "    producer = " << producer_name.toUri() << endl
                          << "    request  = " << request_name.toUri() << endl
-                         << "    username = " <<
-                                    ( ( credentials.hasParameter( "username" ) )
-                                      ? credentials.getParameter( "username" )
-                                      : "none" )
-                                    << endl
-                         << "    password = " <<
-                                    ( ( credentials.hasParameter( "password" ) )
-                                      ? credentials.getParameter( "password" )
-                                      : "none" )
-                                    << endl
                          << "    why      = " << why << endl
                          << "}" << endl;
                  lock.unlock();
              }
       }
       void producerSatisfiedAuthRequest( const Name& producer_name,
-                                         const Name& request_name,
-                                         const NdnParameterSet& credentials )
+                                         const Name& request_name )
       {
             if( logging_enabled )
             {
@@ -334,16 +303,6 @@ namespace ndntac
                          << "    time     = " <<  time::system_clock::now() << endl
                          << "    producer = " << producer_name.toUri() << endl
                          << "    request  = " << request_name.toUri() << endl
-                         << "    username = " <<
-                                    ( ( credentials.hasParameter( "username" ) )
-                                      ? credentials.getParameter( "username" )
-                                      : "none" )
-                                    << endl
-                         << "    password = " <<
-                                    ( ( credentials.hasParameter( "password" ) )
-                                      ? credentials.getParameter( "password" )
-                                      : "none" )
-                                    << endl
                          << "}" << endl;
                  lock.unlock();
              }
@@ -676,7 +635,7 @@ namespace ndntac
        {
                 logging_enabled = enable_logging;
                 lock.lock();
-                log_file.open("scratch/SIMUATION.log");
+                log_file.open("scratch/auth-tag-simulation/logs/SIMUATION.log");
                 log_file << "Simulation:Started" << endl
                          << "{" << endl
                          << "    time      = " << time::system_clock::now() << endl

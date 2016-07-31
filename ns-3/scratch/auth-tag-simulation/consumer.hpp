@@ -85,8 +85,6 @@ namespace ndntac
             static const ns3::Time s_consumer_interest_delay;
     };
 
-    NS_OBJECT_ENSURE_REGISTERED(Consumer);
-
 };
 
 #endif // CONSUMER__INCLUDED

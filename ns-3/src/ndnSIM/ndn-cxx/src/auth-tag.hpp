@@ -32,6 +32,15 @@ namespace ndn
                 m_wire.reset();
             }
         public:
+            class Error : public tlv::Error
+            {
+            public:
+              explicit
+              Error(const std::string& what)
+                : tlv::Error(what)
+              {
+              }
+            };
             AuthTag( const Block& wire );
             AuthTag( uint8_t access_level );
             AuthTag();
@@ -163,6 +172,8 @@ namespace ndn
 
             void setSignature( const Signature& sig )
             {
+                if (sig.getValue().type() != tlv::SignatureValue )
+                  BOOST_THROW_EXCEPTION(Error("Expected Block of type tlv::SignatureValue"));
                 onChanged();
                 m_signature = sig;
 
@@ -170,6 +181,10 @@ namespace ndn
 
             void setSignatureValue( const Block& sig_value )
             {
+              if (sig_value.type() != tlv::SignatureValue )
+                BOOST_THROW_EXCEPTION(Error("Expected Block of type tlv::SignatureValue"));
+
+              onChanged();
               m_signature.setValue( sig_value );
             }
 

@@ -43,6 +43,11 @@ typedef std::vector<shared_ptr<pit::Entry>> DataMatchResult;
 
 } // namespace pit
 
+/**
+* @class Pit
+* This class has been modified by Ray Stubbs [stubbs.ray@gmail.com]
+**/
+
 /** \brief represents the Interest Table
  */
 class Pit : noncopyable

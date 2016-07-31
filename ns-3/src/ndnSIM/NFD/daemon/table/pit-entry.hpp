@@ -62,9 +62,15 @@ enum DuplicateNonceWhere {
   DUPLICATE_NONCE_OUT_OTHER = (1 << 3)
 };
 
+/**
+* @class entry
+* This class has been modified by Ray Stubbs [stubbs.ray@gmail.com] to account
+* for aggregation of payoad interests and AuthTag interests.
+**/
+
 /** \brief represents a PIT entry
  */
-class Entry : public StrategyInfoHost, noncopyable
+class Entry : public StrategyInfoHost //, noncopyable
 {
 public:
   explicit
@@ -163,6 +169,20 @@ public: // OutRecord
   bool
   hasUnexpiredOutRecords() const;
 
+  /**
+  * @brief Push related entry to the related entries list
+  **/
+  void
+  pushRelatedEntry( std::shared_ptr< Entry > entry );
+
+  /**
+  * @brief Pop first related entry off related enties list to replate current
+  *        entry.
+  * @return True if entry was poped, false if nothing to pop in list
+  **/
+  bool
+  popRelatedEntry();
+
 public:
   scheduler::EventId m_unsatisfyTimer;
   scheduler::EventId m_stragglerTimer;
@@ -171,6 +191,7 @@ private:
   shared_ptr<const Interest> m_interest;
   InRecordCollection m_inRecords;
   OutRecordCollection m_outRecords;
+  std::shared_ptr<Entry>   m_related_entry = NULL;
 
   static const Name LOCALHOST_NAME;
   static const Name LOCALHOP_NAME;

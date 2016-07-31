@@ -503,7 +503,7 @@ Block::wire() const
 size_t
 Block::size() const
 {
-  if (hasWire() || hasValue()) {
+  if (hasWire() || hasValue() ) {
     return m_size;
   }
   else

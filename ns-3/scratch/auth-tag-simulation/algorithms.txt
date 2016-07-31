@@ -50,6 +50,12 @@ AuthTag Verification -- Producer:
         exit()
     }
     
+    # check for bloom filter saturation
+    if auth_cache.isSaturated()
+    {
+        auth_cache.reset()
+    }
+    
     # check if we already have the tag cached
     if auth_cache.contains( tag )
     {
@@ -118,13 +124,6 @@ AuthTag Verification -- Routers:
         exit()
     }
     
-    # ensure authentic route hash, this is where traitor tracing might occur
-    if tag.getRouteHash() != interest.getRouteHash()
-    {
-        send( denial( data ) )
-        exit()
-    }
-    
     # only verify signatures with probability equivalent to the opposite
     # probability of the interest's AuthValidityProbability
     if rand_uint32() < interest.getAuthValidityProbability()
@@ -134,12 +133,21 @@ AuthTag Verification -- Routers:
         exit()
     }
     
-    # check if we have tag cached already
-    if auth_cache.contains( tag )
+    # check for bloom filter saturation
+    if auth_cache.isSaturated()
     {
-        # if so then no need for signature verification
-        send( data )
-        exit()
+        auth_cache.reset()
+    }
+    
+    # check if we have tag cached already only if AuthValidityProbability == 0
+    if interest.getAuthValidityProbability() == 0
+    {
+        if auth_cache.contains( tag )
+        {
+            # if so then no need for signature verification
+            send( data )
+            exit()
+        }
     }
     
     # if we are gonna verify the signature then do it
@@ -163,12 +171,26 @@ AuthTag Verification -- Edge Routers:
     # I haven't written the code for this one yet, so it might change
     # a little
     
+    # if access level of 0 then do nothing
+    if( tag.getAccessLevel() == 0 )
+    {
+        # goto normal router procedures ( previous algorithm )
+        ...
+    }
+    
+    # make sure the interest's route hash matches that of its AuthTag
+    if interest.getRouteHash() != tag.getRouteHash()
+    {
+        m_queue.send( denial( data ) )
+        exit()
+    }
+    
     # check for bloom filter saturation
-    if pos_auth_cache.effective_fpp() > 1e-10
+    if pos_auth_cache.isSaturated()
     {
         pos_auth_cache.clear()
     }
-    if neg_auth_cache.effective_fpp() > 1e-10
+    if neg_auth_cache.isSaturated()
     {
         neg_auth_cache.clear()
     }
