@@ -223,7 +223,7 @@ namespace ns3
 
                 Simulator::Stop(Seconds(20));
 
-                mkdir("logs", 0770 );
+                mkdir("scratch/auth-tag-simulation/logs", 0770 );
                 L2RateTracer::InstallAll( "scratch/auth-tag-simulation/logs/DROP_TRACE.log", Seconds(0.5));
                 //ndn::CsTracer::InstallAll("scratch/CS_TRACE.log", Seconds(1) );
                 ndn::AppDelayTracer::InstallAll( "scratch/auth-tag-simulation/logs/APP_DELAY_TRACE.log" );
