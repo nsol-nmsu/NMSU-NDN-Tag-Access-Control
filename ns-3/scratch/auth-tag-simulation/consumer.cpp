@@ -148,7 +148,6 @@ namespace ndntac
   {
     m_interest_queue.push( make_shared<ndn::Interest>(name.getPrefix(1).append("AUTH_TAG") ) );
     ndn::Interest& interest = *m_interest_queue.front();
-    interest.setInterestLifetime( ndn::time::seconds( 0 ) );
     interest.setNonce( rand() );
   }
 
@@ -160,7 +159,7 @@ namespace ndntac
 
     if( hasAuth( name ) )
         interest.setAuthTag( m_auth_tags[ name.getPrefix( 1 ) ] );
-    interest.setInterestLifetime( ndn::time::seconds( 2 ) );
+    interest.setInterestLifetime( ndn::time::seconds( 5 ) );
     interest.setNonce( rand() );
   }
 
