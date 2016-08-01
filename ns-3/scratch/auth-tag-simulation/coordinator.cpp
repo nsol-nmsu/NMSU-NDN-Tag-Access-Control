@@ -8,6 +8,7 @@ namespace ndntac
        using namespace std;
        using namespace ndn;
 
+       LogFilter             log_filter;
        ofstream              log_file;
        recursive_mutex       lock;
        uint64_t              pending;
@@ -631,37 +632,43 @@ namespace ndntac
           lock.unlock();
        }
 
-       void simulationStarted( bool enable_logging )
+       void simulationStarted()
        {
-                logging_enabled = enable_logging;
                 lock.lock();
-                log_file.open("scratch/auth-tag-simulation/logs/SIMUATION.log");
-                log_file << "Simulation:Started" << endl
-                         << "{" << endl
-                         << "    time      = " << time::system_clock::now() << endl
-                         << "    nodes     = " << nodeCount() << endl
-                         << "    producers = " << producerCount() << endl
-                         << "    consumers = " << consumerCount() << endl
-                         << "}" << endl;
-                 lock.unlock();
+                logging_enabled = false;
+                log_file.open("scratch/auth-tag-simulation/logs/SIMULATION.log");
+                LogEntry log( "Simulation", "Started" );
+                log.add( "nodes", std::to_string( nodeCount() ) );
+                log.add( "producers", std::to_string( producerCount() ) );
+                log.add( "consumers", std::to_string( consumerCount() ) );
+                log_file << log.toString();
+                lock.unlock();
+       }
+       void simulationStarted( const LogFilter& filter )
+       {
+         lock.lock();
+         log_filter = filter;
+         logging_enabled = true;
+         log_file.open("scratch/auth-tag-simulation/logs/SIMUATION.log");
+         LogEntry log( "Simulation", "Started" );
+         log.add( "nodes", std::to_string( nodeCount() ) );
+         log.add( "producers", std::to_string( producerCount() ) );
+         log.add( "consumers", std::to_string( consumerCount() ) );
+         log_file << log.toString();
+          lock.unlock();
        }
 
        void simulationFinished()
        {
-                lock.lock();
-                log_file << "Simulation:Finished" << endl
-                         << "{" << endl
-                         << "    time      = " << time::system_clock::now() << endl
-                         << "    nodes     = " << nodeCount() << endl
-                         << "    producers = " << producerStartedCount() << "/"
-                                               << producerCount() << endl
-                         << "    consumers = " << consumerStartedCount() << "/"
-                                               << consumerCount() << endl
-                         << "    pending   = " << pending << endl
-                         << "}" << endl;
-
-                 log_file.close();
-                 lock.unlock();
+         lock.lock();
+         LogEntry log( "Simulation", "Finished" );
+         log.add( "nodes", std::to_string( nodeCount() ) );
+         log.add( "producers", std::to_string( producerCount() ) );
+         log.add( "consumers", std::to_string( consumerCount() ) );
+         log.add( "pending", std::to_string( pending ) );
+         log_file << log.toString();
+         log_file.close();
+         lock.unlock();
        }
 
         void simulationOther( const string& msg )

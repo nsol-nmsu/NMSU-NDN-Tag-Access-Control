@@ -9,6 +9,7 @@
 
 #include "ndn-cxx/name.hpp"
 #include "ndn-cxx/util/time.hpp"
+#include "log-filter.hpp"
 #include <vector>
 #include <map>
 
@@ -134,7 +135,8 @@ namespace ndntac
                             const std::string& filter_name );
 
        // simulation notifiers
-       void simulationStarted( bool enable_logging );
+       void simulationStarted();
+       void simulationStarted( const LogFilter& filter );
        void simulationFinished();
        void simulationOther( const std::string& msg );
    }

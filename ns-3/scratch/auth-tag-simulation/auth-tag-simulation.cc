@@ -24,6 +24,8 @@
 #include "edge-strategy.cpp"
 #include "consumer.hpp"
 #include "consumer.cpp"
+#include "log-filter.hpp"
+#include "log-filter.cpp"
 #include "coordinator.hpp"
 #include "coordinator.cpp"
 
@@ -41,7 +43,7 @@ using namespace ndntac;
 
 namespace ns3
 {
-        const unsigned NCONSUMERS = 2;
+        const unsigned NCONSUMERS = 1;
         const unsigned NPRODUCERS = 3;
         static PointToPointHelper p2p;
         static InternetStackHelper internet;
@@ -221,7 +223,7 @@ namespace ns3
                 // make routes
                 routing_helper.CalculateRoutes();
 
-                Simulator::Stop(Seconds(5));
+                Simulator::Stop(Seconds(1));
 
                 mkdir("scratch/auth-tag-simulation/logs", 0770 );
                 L2RateTracer::InstallAll( "scratch/auth-tag-simulation/logs/DROP_TRACE.log", Seconds(0.5));
@@ -229,7 +231,7 @@ namespace ns3
                 ndn::AppDelayTracer::InstallAll( "scratch/auth-tag-simulation/logs/APP_DELAY_TRACE.log" );
 
 
-                Coordinator::simulationStarted(true);
+                Coordinator::simulationStarted( Coordinator::LogFilter() );
                 Simulator::Run();
                 Simulator::Destroy();
                 Coordinator::simulationFinished();

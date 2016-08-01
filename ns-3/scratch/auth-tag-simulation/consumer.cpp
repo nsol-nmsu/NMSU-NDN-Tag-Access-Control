@@ -132,7 +132,7 @@ namespace ndntac
 
     using ns3::Simulator;
     using ns3::Seconds;
-    Simulator::Schedule( Seconds( m_min_interval + ( m_max_interval - m_min_interval) / rand() )
+    Simulator::Schedule( Seconds( /*m_min_interval + ( m_max_interval - m_min_interval) / rand()*/ 0.1 )
                           , &Consumer::sendNext
                           , this );
   }
