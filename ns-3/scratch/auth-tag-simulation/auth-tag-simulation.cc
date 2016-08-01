@@ -41,8 +41,8 @@ using namespace ndntac;
 
 namespace ns3
 {
-        const unsigned NCONSUMERS = 10;
-        const unsigned NPRODUCERS = 21;
+        const unsigned NCONSUMERS = 2;
+        const unsigned NPRODUCERS = 3;
         static PointToPointHelper p2p;
         static InternetStackHelper internet;
 

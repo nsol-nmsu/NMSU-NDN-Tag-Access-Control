@@ -4,8 +4,8 @@
 * @author Ray Stubbs [stubbs.ray@gmail.com]
 **/
 
-#ifndef Coordinator__INCLUDED
-#define Coordinator__INCLUDED
+#ifndef COORDINATOR__INCLUDED
+#define COORDINATOR__INCLUDED
 
 #include "ndn-cxx/name.hpp"
 #include "ndn-cxx/util/time.hpp"
@@ -141,4 +141,4 @@ namespace ndntac
 
 }
 
-#endif // Coordinator__INCLUDED
+#endif // COORDINATOR__INCLUDED
