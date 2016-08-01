@@ -221,15 +221,16 @@ namespace ns3
                 // make routes
                 routing_helper.CalculateRoutes();
 
-                Simulator::Stop(Seconds(20));
+                Simulator::Stop(Seconds(5));
 
                 mkdir("scratch/auth-tag-simulation/logs", 0770 );
                 L2RateTracer::InstallAll( "scratch/auth-tag-simulation/logs/DROP_TRACE.log", Seconds(0.5));
                 //ndn::CsTracer::InstallAll("scratch/CS_TRACE.log", Seconds(1) );
                 ndn::AppDelayTracer::InstallAll( "scratch/auth-tag-simulation/logs/APP_DELAY_TRACE.log" );
 
-                Simulator::Run();
+
                 Coordinator::simulationStarted(true);
+                Simulator::Run();
                 Simulator::Destroy();
                 Coordinator::simulationFinished();
                 return 0;
