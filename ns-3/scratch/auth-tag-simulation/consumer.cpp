@@ -110,6 +110,11 @@ namespace ndntac
   void
   Consumer::sendNext()
   {
+
+    using ns3::Simulator;
+    using ns3::Seconds;
+    using ns3::MilliSeconds;
+
     if( m_interest_queue.size() == 0 )
     {
         // if nothing queued request from one of the known producers
@@ -127,11 +132,10 @@ namespace ndntac
     }
 
     Coordinator::consumerSentRequest( m_instance_id, m_interest_queue.front()->getName() );
-    m_queue.receiveInterest( m_face, m_interest_queue.front() );
+    //m_queue.receiveInterest( m_face, m_interest_queue.front() );
+    m_face->onReceiveInterest( * m_interest_queue.front() );
     m_interest_queue.pop();
 
-    using ns3::Simulator;
-    using ns3::Seconds;
     Simulator::Schedule( Seconds( /*m_min_interval + ( m_max_interval - m_min_interval) / rand()*/ 0.1 )
                           , &Consumer::sendNext
                           , this );
@@ -149,6 +153,7 @@ namespace ndntac
     m_interest_queue.push( make_shared<ndn::Interest>(name.getPrefix(1).append("AUTH_TAG") ) );
     ndn::Interest& interest = *m_interest_queue.front();
     interest.setNonce( rand() );
+    interest.setInterestLifetime( ndn::time::seconds( 5 ) );
   }
 
   void

@@ -72,11 +72,12 @@ namespace ndntac
     private:
             TxQueue m_queue;
             std::queue< shared_ptr< ndn::Interest > > m_interest_queue;
-            std::vector< ndn::Name >                  m_known_producers;
+            std::vector< ndn::Name > m_known_producers;
             ns3::Time m_min_interval;
             ns3::Time m_max_interval;
             string m_known_producers_list;
             std::map< ndn::Name, ndn::AuthTag > m_auth_tags;
+            ns3::EventId m_last_request;
             uint32_t m_instance_id;
 
             static uint32_t s_instance_id;

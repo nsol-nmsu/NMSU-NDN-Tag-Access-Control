@@ -170,7 +170,7 @@ FaceManager::onFaceRequest(const Interest& request)
       NFD_LOG_DEBUG("command result: processing verb: " << verb);
       (unsignedVerbProcessor->second)(this, request);
     }
-  if ( !COMMAND_PREFIX.isPrefixOf(command))
+  else if ( !COMMAND_PREFIX.isPrefixOf(command))
     {
       NFD_LOG_DEBUG("command result: malformed");
       sendResponse(command, 400, "Malformed command");

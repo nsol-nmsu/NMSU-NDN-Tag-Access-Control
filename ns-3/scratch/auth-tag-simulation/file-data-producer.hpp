@@ -12,6 +12,7 @@
 #include "ndn-cxx/interest.hpp"
 #include "ndn-cxx/data.hpp"
 #include "ndn-cxx/name.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 
 #define FILE_SEGMENT_SIZE 1000
 
@@ -41,7 +42,8 @@ namespace ndntac
 
       data->setAccessLevel( m_access_level );
       data->setContent( Block( buffer, FILE_SEGMENT_SIZE ) );
-      data->setSignatureValue( Block( tlv::SignatureValue, Block( "Not Empty", 9) ) );
+      data->setSignature( ndn::security::DUMMY_NDN_SIGNATURE  );
+      data->wireEncode();
       return data;
     }
 

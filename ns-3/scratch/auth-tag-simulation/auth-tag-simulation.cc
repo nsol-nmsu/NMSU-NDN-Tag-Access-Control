@@ -212,6 +212,8 @@ namespace ns3
                 // install consumers on all consumer nodes
                 ndn::AppHelper consumer_helper( "ndntac::Consumer" );
                 consumer_helper.SetAttribute( "KnownProducers", StringValue(producer_list) );
+                //ndn::AppHelper consumer_helper( "ns3::ndn::ConsumerCbr" );
+                //consumer_helper.SetAttribute("Prefix", StringValue("/github.com/AUTH_TAG"));
                 for( it = consumer_nodes.begin() ;
                      it != consumer_nodes.end() ;
                      it++ )

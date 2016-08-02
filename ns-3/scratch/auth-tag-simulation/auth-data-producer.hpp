@@ -12,6 +12,7 @@
 #include "ndn-cxx/interest.hpp"
 #include "ndn-cxx/data.hpp"
 #include "ndn-cxx/name.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 
 namespace ndntac
 {
@@ -29,7 +30,16 @@ namespace ndntac
 
       const ndn::Block& payload = interest->getPayload();
       if( payload.type() != tlv::ContentType_AuthRequest )
-        return NULL;
+      {
+        // nack
+        auto nack = make_shared< Data >( interest->getName() );
+        nack->setContentType( tlv::ContentType_Nack );
+        nack->setAccessLevel( 0 );
+        nack->setFreshnessPeriod( time::seconds( 0 ) );
+        nack->setSignature( ndn::security::DUMMY_NDN_SIGNATURE  );
+        nack->wireEncode();
+        return nack;
+      }
 
       uint64_t route_hash = readNonNegativeInteger( payload.get( tlv::RouteHash ) );
 
@@ -43,14 +53,15 @@ namespace ndntac
         tag.setConsumerLocator( interest->getSignature().getKeyLocator() );
       else
         tag.setConsumerLocator( KeyLocator() );
-      tag.setSignatureValue( Block( tlv::SignatureValue, Block( "Not Empty", 9) ) );
+      tag.setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
 
       auto data = make_shared< Data >( interest->getName() );
       data->setContentType( tlv::ContentType_AuthGranted );
       data->setContent( tag.wireEncode() );
       data->setAccessLevel( 0 );
       data->setFreshnessPeriod( time::seconds( 0 ) );
-      data->setSignatureValue( ndn::Block( tlv::SignatureValue, Block( "Not Empty", 9) ) );
+      data->setSignature( ndn::security::DUMMY_NDN_SIGNATURE  );
+      data->wireEncode();
       return data;
     }
 
@@ -63,6 +74,7 @@ namespace ndntac
   private:
     ndn::Name     m_prefix;
     uint8_t       m_access_level;
+
   };
 }
 

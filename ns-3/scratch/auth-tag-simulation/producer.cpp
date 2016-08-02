@@ -1,5 +1,6 @@
 #include "producer.hpp"
 #include "coordinator.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 
 extern "C"
 {
@@ -59,7 +60,6 @@ namespace ndntac
       m_queue.delay( s_producer_interest_delay );
 
       // check if we have the appropriate data producer
-      shared_ptr< DataProducer > producer = NULL;
       auto it = m_producers.find( interest->getName() );
       if( it == m_producers.end() )
       {
@@ -68,6 +68,9 @@ namespace ndntac
                                     + interest->getName().toUri() );
         return;
       }
+
+      // get producer
+      shared_ptr< DataProducer > producer = it->second;
 
       // make data
       auto data = producer->makeData( interest );
@@ -206,8 +209,9 @@ namespace ndntac
     auto denial = make_shared< ndn::Data >( data.getName() );
     denial->setContentType( ndn::tlv::ContentType_AuthDenial );
     denial->setContent( data.wireEncode() );
-    denial->setSignatureValue( ndn::Block( ndn::tlv::SignatureValue, ndn::Block( "Not Empty", 9 ) ) );
     denial->setFreshnessPeriod( ndn::time::milliseconds(0));
+    denial->setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+    denial->wireEncode();
     return denial;
   }
 
