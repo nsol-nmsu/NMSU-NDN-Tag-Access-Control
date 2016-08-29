@@ -17,16 +17,16 @@
 #include "auth-data-producer.hpp"
 #include "file-data-producer.hpp"
 #include "producer.hpp"
-#include "producer.cpp"
 #include "router-strategy.hpp"
-#include "router-strategy.cpp"
 #include "edge-strategy.hpp"
-#include "edge-strategy.cpp"
-#include "consumer.hpp"
-#include "consumer.cpp"
+#include "consumer-tag-auth.hpp"
 #include "log-filter.hpp"
-#include "log-filter.cpp"
 #include "coordinator.hpp"
+#include "producer.cpp"
+#include "router-strategy.cpp"
+#include "edge-strategy.cpp"
+#include "consumer-tag-auth.cpp"
+#include "log-filter.cpp"
 #include "coordinator.cpp"
 
 extern "C"
@@ -39,7 +39,7 @@ extern "C"
 using namespace std;
 using namespace ndn;
 using namespace ndntac;
-
+/*
 
 namespace ns3
 {
@@ -242,8 +242,9 @@ namespace ns3
         };
 
 };
-
+*/
 int main( int argc, char* argv[] )
 {
-        return ns3::main( argc, argv );
+        //return ns3::main( argc, argv );
+        return 0;
 }
