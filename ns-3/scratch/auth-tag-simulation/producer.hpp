@@ -20,8 +20,6 @@
 #include "ndn-cxx/data.hpp"
 #include "ndn-cxx/auth-tag.hpp"
 #include "ndn-cxx/encoding/tlv.hpp"
-#include "file-data-producer.hpp"
-#include "auth-data-producer.hpp"
 #include "tx-queue.hpp"
 #include "auth-cache.hpp"
 
@@ -49,26 +47,30 @@ namespace ndntac
       StopApplication() override;
 
     private:
-     void
-     makeProducers( const string& dir, const string& path,
-              std::map< ndn::Name, shared_ptr< DataProducer > > container );
 
+     void
+     onDataRequest( shared_ptr< const ndn::Interest > interest );
+     
+     void
+     onAuthRequest( shared_ptr< const ndn::Interest > interest );
+     
      shared_ptr< ndn::Data >
      makeAuthDenial( const ndn::Data& data );
 
     private:
             AuthCache m_auth_cache;
             TxQueue m_queue;
-            string m_dir;
-            string m_prefix_str;
+            string m_names_string;
+            std::map<ndn::Name, std::pair< size_t, uint8_t >> m_names;
             ndn::Name m_prefix;
-            std::map< ndn::Name, shared_ptr< DataProducer > > m_producers;
             uint32_t m_instance_id;
 
             static uint32_t s_instance_id;
             static const ns3::Time s_producer_signature_delay;
             static const ns3::Time s_producer_bloom_delay;
             static const ns3::Time s_producer_interest_delay;
+    public:
+            static const size_t s_segment_size;
     };
 
 };

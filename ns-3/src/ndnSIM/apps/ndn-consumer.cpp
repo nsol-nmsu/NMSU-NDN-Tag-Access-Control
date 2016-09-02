@@ -35,6 +35,9 @@
 
 #include <boost/lexical_cast.hpp>
 #include <boost/ref.hpp>
+#include <boost/random/uniform_int_distribution.hpp>
+#include <boost/random/uniform_real_distribution.hpp>
+#include <boost/random/exponential_distribution.hpp>
 
 NS_LOG_COMPONENT_DEFINE("ndn.Consumer");
 

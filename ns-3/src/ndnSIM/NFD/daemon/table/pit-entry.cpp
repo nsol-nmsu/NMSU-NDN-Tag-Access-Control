@@ -258,7 +258,13 @@ Entry::popRelatedEntry()
   if( m_related_entry == NULL )
     return false;
 
-  *this = *m_related_entry;
+  // copy all necessary files over to the top entry
+  m_unsatisfyTimer = m_related_entry->m_unsatisfyTimer;
+  m_stragglerTimer = m_related_entry->m_stragglerTimer;
+  m_interest       = m_related_entry->m_interest;
+  m_inRecords      = m_related_entry->m_inRecords;
+  m_outRecords     = m_related_entry->m_outRecords;
+  m_related_entry  = m_related_entry->m_related_entry;
   return true;
 }
 

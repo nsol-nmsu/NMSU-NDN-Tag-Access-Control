@@ -72,8 +72,11 @@ public:
 
   /**
    * @brief Actually send packet
+   *
+   * @note Modified by Ray Stubbs [stubbs.ray@gmail.com]
+   *       set SendPacket function as virtual.
    */
-  void
+  virtual void
   SendPacket();
 
   /**

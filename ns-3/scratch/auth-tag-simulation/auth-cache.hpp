@@ -33,8 +33,8 @@ namespace ndntac
       m_max_fpp = fpp;
 
       bloom_parameters bparams;
-      bparams.projected_element_count = fpp;
-      bparams.false_positive_probability = n;
+      bparams.projected_element_count = n;
+      bparams.false_positive_probability = fpp;
       bparams.compute_optimal_parameters();
       m_bloom = bloom_filter( bparams );
     }

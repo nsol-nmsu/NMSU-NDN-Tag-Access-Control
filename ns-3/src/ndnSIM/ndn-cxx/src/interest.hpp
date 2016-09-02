@@ -227,17 +227,29 @@ public: // Name and guiders
   getPayload() const
   {
     if (m_payload.empty())
-      m_payload = makeEmptyBlock(tlv::Content);
+      m_payload = makeEmptyBlock(tlv::Payload);
 
     if (!m_payload.hasWire())
       m_payload.encode();
-    return m_payload;
+    
+    static Block pl;
+    if( m_payload.value_size() > 0 )
+        pl = m_payload.blockFromValue();
+    else
+    {
+        pl = Block( ndn::tlv::ContentType_Blob );
+        pl.encode();
+    }
+    return pl;
   }
 
   Interest&
   setPayload( const Block& payload )
   {
-    m_payload = payload;
+    Block pl = payload;
+    if( !pl.hasWire() )
+        pl.encode();
+    m_payload = Block( tlv::Payload, pl );
     m_wire.reset();
     return *this;
   }

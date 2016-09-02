@@ -70,7 +70,7 @@ enum DuplicateNonceWhere {
 
 /** \brief represents a PIT entry
  */
-class Entry : public StrategyInfoHost //, noncopyable
+class Entry : public StrategyInfoHost, noncopyable
 {
 public:
   explicit

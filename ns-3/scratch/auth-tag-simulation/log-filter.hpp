@@ -41,7 +41,7 @@ namespace Coordinator
     void add( const string& key, const string& value );
 
     /**
-    * @brief Conver the log to a printable format
+    * @brief Convert the log to a printable format
     **/
     string toString() const;
 

@@ -143,6 +143,9 @@ private:
 
   ns3::TracedValue<uint32_t> m_window;
   ns3::TracedValue<uint32_t> m_inFlight;
+  
+  uint32_t m_instance_id;
+  static uint32_t s_instance_id;
 };
 
 } // namespace ndntac

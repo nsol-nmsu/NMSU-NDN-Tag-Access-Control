@@ -8,73 +8,130 @@
 #include "ns3/ndnSIM-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/ipv4-address-helper.h"
-#include "ns3/brite-module.h"
+#include "ns3/names.h"
+#include "ns3/ndnSIM/apps/ndn-consumer-cbr.hpp"
+//#include "ns3/brite-module.h"
 
 // include interface and implementation files since I haven't figured
 // out how to customize ndnSIM linking
 #include "tx-queue.hpp"
-#include "data-producer.hpp"
-#include "auth-data-producer.hpp"
-#include "file-data-producer.hpp"
 #include "producer.hpp"
 #include "router-strategy.hpp"
 #include "edge-strategy.hpp"
 #include "consumer-tag-auth.hpp"
 #include "log-filter.hpp"
 #include "coordinator.hpp"
+#include "consumer-wrapper.hpp"
+#include "pconfig-reader.hpp"
 #include "producer.cpp"
 #include "router-strategy.cpp"
 #include "edge-strategy.cpp"
 #include "consumer-tag-auth.cpp"
 #include "log-filter.cpp"
 #include "coordinator.cpp"
-
-extern "C"
-{
-  #include <sys/stat.h>
-  #include <sys/types.h>
-}
+#include "consumer-wrapper.cpp"
+#include "pconfig-reader.cpp"
 
 
 using namespace std;
 using namespace ndn;
 using namespace ndntac;
-/*
+
+template class ConsumerWrapper<ns3::ndn::ConsumerCbr>;
+typedef ConsumerWrapper<ns3::ndn::ConsumerCbr> WrappedConsumerCbr;
+NS_OBJECT_ENSURE_REGISTERED(WrappedConsumerCbr);
 
 namespace ns3
 {
-        const unsigned NCONSUMERS = 1;
-        const unsigned NPRODUCERS = 3;
-        static PointToPointHelper p2p;
-        static InternetStackHelper internet;
-
-        void makeTopo( NodeContainer& out, const string& config )
-        {
-
-            BriteTopologyHelper briteHelper( config );
-            briteHelper.AssignStreams( 3 );
-            briteHelper.BuildBriteTopology( internet );
-
-            uint32_t as_count = briteHelper.GetNAs();
-            for( uint32_t as_num = 0 ; as_num < as_count ; as_num++ )
-            {
-                uint32_t node_count = briteHelper.GetNNodesForAs( as_num );
-                for( uint32_t node_num = 0 ; node_num < node_count ; node_num++ )
-                {
-                    Ptr<ns3::Node> node = briteHelper.GetNodeForAs( as_num, node_num );
-                    out.Add( node );
-                }
-
-            }
-        }
-
-
         int main( int argc, char* argv[] )
         {
+            PConfigReader preader( "scratch/auth-tag-simulation/producers.pconfig" );
+            preader.parse();
+            for( auto i = preader.begin() ; i != preader.end() ; i++ )
+            {
+                for( auto j = i->begin() ; j != i->end() ; j++ )
+                {
+                    std::cout << "Name:   " << ndn::Name(i->getName()).append(j->name).toUri() << std::endl
+                              << "Size:   " << j->size         << endl
+                              << "Access: " << (int)j->access_level << std::endl
+                              << "Popul:  " << j->popularity   << std::endl;
+                }
+            }
+            return 0;
+        #if 0
                 CommandLine cmd;
                 cmd.Parse( argc, argv );
 
-                // node groups
+                AnnotatedTopologyReader topo_reader( "", 25 );
+                topo_reader.SetFileName( "scratch/auth-tag-simulation/simulation.topo" );
+                topo_reader.Read();
+                
+                
+                ndn::StackHelper ndn_helper;
+                ndn_helper.InstallAll();
+                
+                ndn::GlobalRoutingHelper routing_helper;
+                routing_helper.InstallAll();
+                
+                NodeContainer all_nodes = topo_reader.GetNodes();
+                NodeContainer producer_nodes;
+                NodeContainer consumer_nodes;
+                NodeContainer router_nodes;
+                NodeContainer edge_nodes;
+                
+                // seperate node types
+                for( auto n = all_nodes.begin() ; n != all_nodes.end() ; n++ )
+                {
+                        switch( Names::FindName( *n )[0] )
+                        {
+                                case 'p':
+                                        producer_nodes.Add( *n );
+                                        break;
+                                case 'c':
+                                        consumer_nodes.Add( *n );
+                                        break;
+                                case 'r':
+                                        router_nodes.Add( *n );
+                                        break;
+                                case 'e':
+                                        edge_nodes.Add( *n );
+                                        break;
+                                default:
+                                        break;
+                        }            
+                }
+                
+                // setup producers
+                ndn::AppHelper producer_app("ndntac::Producer");
+                producer_app.SetAttribute( "Names",
+                                            StringValue("[test1:10M:1][test2:1G:3][test3:3K:1]") );
+                producer_app.SetAttribute( "Prefix", StringValue( "producer" ) );
+                producer_app.Install( producer_nodes );
+                
+                // setup consumers
+                ndn::AppHelper consumer_app(WrappedConsumerCbr::GetTypeId().GetName() );
+                consumer_app.SetAttribute( "Prefix", StringValue( "/producer/test1" ) );
+                consumer_app.Install( consumer_nodes );
+                
+                // for now just use stock router for all nodes
+                ndn::StrategyChoiceHelper::InstallAll("/", "/localhost/nfd/strategy/best-route");
+                
+                
+                routing_helper.AddOrigins( "/producer", producer_nodes );
+                ndn::GlobalRoutingHelper::CalculateRoutes();
+                
+                
+                Coordinator::simulationStarted( Coordinator::LogFilter() );
+                Simulator::Stop( Seconds( 20 ) );
+                Simulator::Run();
+                Simulator::Destroy();
+                Coordinator::simulationFinished();
+                return 0;
+                
+                
+                
+                
+                /*// node groups
                 vector<NodeContainer> producer_nodes;
                 vector<NodeContainer> consumer_nodes;
                 NodeContainer router_nodes;
@@ -237,14 +294,15 @@ namespace ns3
                 Simulator::Run();
                 Simulator::Destroy();
                 Coordinator::simulationFinished();
-                return 0;
+                return 0;*/
+            #endif
 
         };
 
 };
-*/
+
+
 int main( int argc, char* argv[] )
 {
-        //return ns3::main( argc, argv );
-        return 0;
+        return ns3::main( argc, argv );
 }

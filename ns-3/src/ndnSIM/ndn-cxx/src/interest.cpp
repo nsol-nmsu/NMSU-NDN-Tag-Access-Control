@@ -254,7 +254,7 @@ Interest::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion ) cons
   signed_length += encoder.prependBlock( m_signature.getInfo() );
 
   // Payload
-  if( getPayload().value_size() > 0 )
+  if( !m_payload.empty() )
     signed_length += encoder.prependBlock( m_payload );
 
 

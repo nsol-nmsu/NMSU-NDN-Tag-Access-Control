@@ -26,6 +26,7 @@
 #include "ns3/string.h"
 #include "ns3/uinteger.h"
 #include "ns3/double.h"
+#include "coordinator.hpp"
 
 NS_LOG_COMPONENT_DEFINE("ndntac.ConsumerTagAuth");
 
@@ -33,6 +34,8 @@ namespace ndntac
 {
 
 NS_OBJECT_ENSURE_REGISTERED(ConsumerTagAuth);
+
+uint32_t ConsumerTagAuth::s_instance_id = 0;
 
 ns3::TypeId
 ConsumerTagAuth::GetTypeId(void)
@@ -49,7 +52,7 @@ ConsumerTagAuth::GetTypeId(void)
 
       .AddAttribute("PayloadSize",
                     "Average size of content object size (to calculate interest generation rate)",
-                    ns3::UintegerValue(1040), ns3::MakeUintegerAccessor(&ConsumerTagAuth::GetPayloadSize,
+                    ns3::UintegerValue(1024), ns3::MakeUintegerAccessor(&ConsumerTagAuth::GetPayloadSize,
                                                                         &ConsumerTagAuth::SetPayloadSize),
                     ns3::MakeUintegerChecker<uint32_t>())
 
@@ -82,7 +85,8 @@ ConsumerTagAuth::ConsumerTagAuth()
   : m_payloadSize(1040)
   , m_inFlight(0)
 {
-  m_distr_regex = boost::regex( "\\s*(\\w+)\\s*\\((\\s*(\\w+)\\s*)*\\)\\s*" );
+  m_instance_id = s_instance_id++;
+  m_distr_regex = boost::regex( "\\s*(\\w+)\\s*\\(\\s*((\\w+)\\s+(\\w+)?)?\\s*\\)\\s*" );
 }
 
 void
@@ -154,6 +158,8 @@ ConsumerTagAuth::ScheduleNextPacket()
   // if we don't have a valid AuthTag then we request a tag instead of the content
   if( m_authTag == NULL || m_authTag->isExpired() )
   {
+ 
+    Coordinator::consumerRequestedAuth( m_instance_id, ndn::Name(m_contentName).appendSequenceNumber( m_seq ) );
     m_interestName = m_contentName.getPrefix( 1 ).append( "AUTH_TAG" );
   }
   else
@@ -161,31 +167,37 @@ ConsumerTagAuth::ScheduleNextPacket()
     // if the last interest requested was an AuthTag then we need to decrement
     // the sequence number to keep Consumer from skipping an interest
     if( m_interestName.get( -1 ).toUri() == "AUTH_TAG" )
+    {
       m_seq--;
+      
+      // reset window size
+      //m_window = m_initialWindow;
+    }
     m_interestName = m_contentName;
+    Coordinator::consumerSentRequest( m_instance_id, ndn::Name(m_contentName).appendSequenceNumber( m_seq ) );
     
   }
   
+if (m_window == static_cast<uint32_t>(0) ) {
 
-
-  if (m_window == static_cast<uint32_t>(0)) {
     ns3::Simulator::Remove(m_sendEvent);
 
+/*
     // generate interval
     double interval = 0;
     unsigned which = m_distr.which();
     if( which == 0 )
       interval = boost::get<boost::random::uniform_real_distribution<>>( m_distr )( m_rng );
     else
-      interval = boost::get<boost::random::exponential_distribution<>>( m_distr )( m_rng );
+      interval = boost::get<boost::random::exponential_distribution<>>( m_distr )( m_rng );*/
     
 
     NS_LOG_DEBUG(
-      "Next event in " << (std::min<double>(interval, m_rtt->RetransmitTimeout().ToDouble(ns3::Time::S)))
+      "Next event in " << (std::min<double>( 0.5, m_rtt->RetransmitTimeout().ToDouble(ns3::Time::S)))
                        << " sec");
     m_sendEvent =
       ns3::Simulator::Schedule(ns3::Seconds(
-                            std::min<double>(interval, m_rtt->RetransmitTimeout().ToDouble(ns3::Time::S))),
+                            std::min<double>( 0.5, m_rtt->RetransmitTimeout().ToDouble(ns3::Time::S))),
                           &Consumer::SendPacket, this);
   }
   else if (m_inFlight >= m_window) {
@@ -195,8 +207,11 @@ ConsumerTagAuth::ScheduleNextPacket()
     if (m_sendEvent.IsRunning()) {
       ns3::Simulator::Remove(m_sendEvent);
     }
-
-    m_sendEvent = ns3::Simulator::ScheduleNow(&Consumer::SendPacket, this);
+    
+    if( m_authTag == NULL )
+      m_sendEvent = ns3::Simulator::Schedule( ns3::Seconds( 0.5 ), &Consumer::SendPacket, this );
+    else
+      m_sendEvent = ns3::Simulator::ScheduleNow(&Consumer::SendPacket, this);
   }
 }
 
@@ -214,14 +229,6 @@ ConsumerTagAuth::OnData(shared_ptr<const ndn::Data> data )
   if (m_inFlight > static_cast<uint32_t>(0))
     m_inFlight--;
   NS_LOG_DEBUG("Window: " << m_window << ", InFlight: " << m_inFlight);
-
-
-  if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
-  {
-      const ndn::Block& payload = data->getContent().blockFromValue();
-      m_authTag = make_shared<ndn::AuthTag>( payload );
-      return;
-  }
 
   ScheduleNextPacket();
 }
@@ -259,7 +266,7 @@ ConsumerTagAuth::StartApplication()
   boost::smatch match;
   boost::regex_match( m_distr_string, match, m_distr_regex );
   
-  if( match.size() < 2 )
+  if( match.size() < 1 )
     throw std::invalid_argument( "Invalid distribution specifier format" );
 
   std::string distr = match[1].str();
