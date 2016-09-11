@@ -202,7 +202,11 @@ enum ContentTypeValue {
 
   /** An interest payload used to request an AuthTag from provider
   */
-  ContentType_AuthRequest = 6
+  ContentType_AuthRequest = 6,
+  
+  /** End of Content data type
+  */
+  ContentType_EoC = 7,
 
   // End MODs by Ray Stubbs [stubbs.ray@gmail.com]
 };

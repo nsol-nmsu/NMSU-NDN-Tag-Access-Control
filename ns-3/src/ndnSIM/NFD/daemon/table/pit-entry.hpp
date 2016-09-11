@@ -176,12 +176,14 @@ public: // OutRecord
   pushRelatedEntry( std::shared_ptr< Entry > entry );
 
   /**
-  * @brief Pop first related entry off related enties list to replate current
-  *        entry.
-  * @return True if entry was poped, false if nothing to pop in list
+  * @brief Get the next entry in the linked list
+  * @return Pointer to next entry
   **/
-  bool
-  popRelatedEntry();
+  shared_ptr<Entry>
+  nextRelatedEntry();
+  
+  /*bool
+  operator<( const Entry& entry );*/
 
 public:
   scheduler::EventId m_unsatisfyTimer;
@@ -219,6 +221,13 @@ Entry::getOutRecords() const
 {
   return m_outRecords;
 }
+
+/*
+inline bool
+Entry::operator<( const Entry& entry )
+{
+    return m_nameTreeEntry < entry.m_nameTreeEntry;
+}*/
 
 } // namespace pit
 } // namespace nfd

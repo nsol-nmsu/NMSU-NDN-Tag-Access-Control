@@ -35,6 +35,7 @@ const Name Entry::LOCALHOP_NAME("ndn:/localhop");
 
 Entry::Entry(const Interest& interest)
   : m_interest(interest.shared_from_this())
+  , m_related_entry( NULL )
 {
 }
 
@@ -133,7 +134,8 @@ Entry::insertOrUpdateInRecord(shared_ptr<Face> face, const Interest& interest)
 {
   // if interest matches our interest's auth tag then insert in record into
   // this pit entry
-  if( interest.getAuthTag() == getInterest().getAuthTag() )
+  if( interest.getPayload().type() == ndn::tlv::ContentType_AuthRequest
+      || interest.getAuthTag() == getInterest().getAuthTag() )
   {
     auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
       [&face] (const InRecord& inRecord) { return inRecord.getFace() == face; });
@@ -248,24 +250,13 @@ Entry::pushRelatedEntry( std::shared_ptr< Entry > entry )
 }
 
 /**
-* @brief Pop first related entry off related enties list to replate current
-*        entry.
-* @return True if entry was poped, false if nothing to pop in list
+* @brief Return the next entry in the linked list
+* @return A pointer to the next entry
 **/
-bool
-Entry::popRelatedEntry()
+shared_ptr<Entry>
+Entry::nextRelatedEntry()
 {
-  if( m_related_entry == NULL )
-    return false;
-
-  // copy all necessary files over to the top entry
-  m_unsatisfyTimer = m_related_entry->m_unsatisfyTimer;
-  m_stragglerTimer = m_related_entry->m_stragglerTimer;
-  m_interest       = m_related_entry->m_interest;
-  m_inRecords      = m_related_entry->m_inRecords;
-  m_outRecords     = m_related_entry->m_outRecords;
-  m_related_entry  = m_related_entry->m_related_entry;
-  return true;
+  return m_related_entry;
 }
 
 } // namespace pit
