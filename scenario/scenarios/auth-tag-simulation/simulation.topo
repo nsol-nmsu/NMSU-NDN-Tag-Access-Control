@@ -1,0 +1,61 @@
+# any empty lines and lines starting with '#' symbol is ignored
+#
+# The file should contain exactly two sections: router and link, each starting with the corresponding keyword
+#
+# router section defines topology nodes and their relative positions (e.g., to use in visualizer)
+router
+
+# each line in this section represents one router and should have the following data
+# node  comment     yPos    xPos
+p1      NA          1       0
+p2      NA          4       0
+p3      NA          7       0
+r1      NA          4       3
+r2      NA          4       4
+r3      NA          4       5
+r4      NA          4       6
+r5      NA          4       7
+r6      NA          4       8
+e1      NA          4       2
+e2      NA          4       10
+c1      NA          1       12
+c2      NA          2       12
+c3      NA          3       12
+c4      NA          4       12
+c5      NA          5       12
+c6      NA          6       12
+c7      NA          7       12
+# Note that `node` can be any string. It is possible to access to the node by name using Names::Find, see examples.
+
+# link section defines point-to-point links between nodes and characteristics of these links
+link
+
+# Each line should be in the following format (only first two are required, the rest can be omitted)
+# srcNode   dstNode     bandwidth   metric  delay   queue
+# bandwidth: link bandwidth
+# metric: routing metric
+# delay:  link delay
+# queue:  MaxPackets for transmission queue on the link (both directions)
+
+# Producers to edge
+p1          e1          512Mbps       1       10ms    10
+p2          e1          512Mbps       1       10ms    10
+p3          e1          512Mbps       1       10ms    10
+
+# Routers between edges
+e1          r1          1024Mbps       1       10ms    10
+r1          r2          1024Mbps       1       10ms    10
+r2          r3          1024Mbps       1       10ms    10
+r3          r4          1024Mbps       1       10ms    10
+r4          r5          1024Mbps       1       10ms    10
+r5          r6          1024Mbps       1       10ms    10
+r6          e2          1024Mbps       1       10ms    10
+
+# Consumers to edge
+c1          e2          1Mbps       1       10ms    10
+c2          e2          1Mbps       1       10ms    10
+c3          e2          1Mbps       1       10ms    10
+c4          e2          1Mbps       1       10ms    10
+c5          e2          1Mbps       1       10ms    10
+c6          e2          1Mbps       1       10ms    10
+c7          e2          1Mbps       1       10ms    10
