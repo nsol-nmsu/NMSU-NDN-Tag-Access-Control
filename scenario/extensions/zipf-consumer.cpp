@@ -281,7 +281,8 @@ ZipfConsumer::SendPacket()
       if( !m_pending_next_content && m_retxSeqs.empty() )
       {
           m_pending_next_content = true;
-          Simulator::Schedule( Seconds( 1 ), &ZipfConsumer::Reset, this );
+          Simulator::Schedule( Seconds( m_exp_rand->GetValue() ),
+                               &ZipfConsumer::Reset, this );
       }
       return;
     }
