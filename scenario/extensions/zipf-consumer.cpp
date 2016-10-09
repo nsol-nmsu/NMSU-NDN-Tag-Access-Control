@@ -70,21 +70,28 @@ ZipfConsumer::GetTypeId(void)
                     StringValue("50ms"),
                     MakeTimeAccessor(&ZipfConsumer::GetRetxTimer, &ZipfConsumer::SetRetxTimer),
                     MakeTimeChecker())
-      .AddAttribute("q", "parameter of improve rank", StringValue("0.7"),
+      .AddAttribute("q", "parameter of improve rank for Zipf variable", StringValue("0.7"),
                     MakeDoubleAccessor(&ZipfConsumer::SetQ,
                                        &ZipfConsumer::GetQ),
                     MakeDoubleChecker<double>())
 
-      .AddAttribute("s", "parameter of power", StringValue("0.7"),
+      .AddAttribute("s", "parameter of power for Zipf variable", StringValue("0.7"),
                     MakeDoubleAccessor(&ZipfConsumer::SetS,
                                        &ZipfConsumer::GetS),
-                    MakeDoubleChecker<double>());
+                    MakeDoubleChecker<double>())
+      .AddAttribute("Mean", "parameter of mean for exponential variable", DoubleValue( 5 ),
+                    MakeDoubleAccessor( &ZipfConsumer::SetExponentialMean ),
+                    MakeDoubleChecker<double>() )
+      .AddAttribute("Bound", "bound parameter for exponential variable", DoubleValue( 10 ),
+                    MakeDoubleAccessor( &ZipfConsumer::SetExponentialBound ),
+                    MakeDoubleChecker<double>() );
 
   return tid;
 }
 
 ZipfConsumer::ZipfConsumer()
   : m_rand(CreateObject<UniformRandomVariable>())
+  , m_exp_rand( CreateObject<ExponentialRandomVariable>() )
   , m_seq(0)
   , m_finished_content( false )
   , m_pending_next_content( false )
@@ -219,6 +226,18 @@ ZipfConsumer::SetNames( std::string names )
   }
    
   PrepareZipf();
+}
+
+void
+ZipfConsumer::SetExponentialMean( double mean )
+{
+    m_exp_rand->SetAttribute( "Mean", DoubleValue(mean) );
+}
+
+void
+ZipfConsumer::SetExponentialBound( double bound )
+{
+    m_exp_rand->SetAttribute( "Bound", DoubleValue(bound) );
 }
 
 // Application Methods

@@ -10,18 +10,6 @@ namespace ndntac
     uint32_t ConsumerWrapper<Consumer>::s_instance_id = 0;
     
     template< typename Consumer >
-    ns3::TypeId
-    ConsumerWrapper<Consumer>::GetTypeId()
-    {
-        static ns3::TypeId tid =
-        ns3::TypeId( (string("ndntac::ConsumerWrapper<") + typeid(Consumer).name() + ">").c_str())
-            .SetGroupName( "Ndn" )
-            .SetParent<Consumer>()
-            .template AddConstructor<ConsumerWrapper<Consumer>>();
-        return tid;
-    };
-    
-    template< typename Consumer >
     ConsumerWrapper<Consumer>::ConsumerWrapper()
     {
         m_instance_id = s_instance_id++;

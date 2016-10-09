@@ -133,9 +133,29 @@ protected:
   ns3::Time
   GetRetxTimer() const;
   
+  /**
+  * \brief Set the 'Mean' attribute
+  *
+  * This is the mean of the exponential random variable to be used
+  * for choosing a content frequency.  Determines how often contents
+  * are requested.
+  **/
+  void
+  SetExponentialMean( double mean );
+  
+  /**
+  * \brief Set the 'Bound' attribute
+  *
+  * This is the bound for the exponential random vairable to be used
+  * for choosing a content frequency.  Determines how often contents
+  * are requested.
+  **/
+  void
+  SetExponentialBound( double bound );
+  
     
   /**
-  * \brief Reset the consumer, choose a content name according to Zipf
+  * \brief Reset the consumer, choose a content name according to Zipf distribution
   **/
   virtual void
   Reset();
@@ -163,7 +183,8 @@ private:
   SetNames( std::string names );
 
 protected:
-  ns3::Ptr<ns3::UniformRandomVariable> m_rand; ///< @brief nonce generator
+  ns3::Ptr<ns3::UniformRandomVariable> m_rand; ///< @brief uniform random number generator
+  ns3::Ptr<ns3::ExponentialRandomVariable> m_exp_rand;
 
   uint32_t m_seq;      ///< @brief currently requested sequence number
   bool m_finished_content;  ///< @brief Flag to indicate that the current content has been completely retrieved
