@@ -456,6 +456,7 @@ inline void
 Data::updateRouteHash( uint32_t link_id )
 {
   m_route_hash ^= link_id;
+  onChanged();
 }
 
 inline nfd::LocalControlHeader&

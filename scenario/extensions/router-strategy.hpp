@@ -1,6 +1,6 @@
 /**
 * @class ndntac::RouterStrategy
-* @brief Producer application with AuthTag authentication.
+* @brief Router strategy with AuthTag verification
 *
 * A forwarding strategy that implements tag access control
 *
@@ -32,8 +32,8 @@ namespace ndntac
                       const ndn::Name& name = STRATEGY_NAME );
 
       bool
-      onIncomingInterest( nfd::Face& face, const ndn::Interest& interest )
-      override;
+      onIncomingInterest( nfd::Face& face,
+                          const ndn::Interest& interest ) override;
 
       void
       beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
@@ -57,10 +57,10 @@ namespace ndntac
             AuthCache m_auth_cache;
             nfd::Forwarder& m_forwarder;
 
-    private:
+    protected:
+            static uint32_t s_instance_id_offset;
             uint32_t m_instance_id;
-
-            static uint32_t s_instance_id;
+    private:
             static const ns3::Time s_router_signature_delay;
             static const ns3::Time s_router_bloom_delay;
             static const ns3::Time s_router_interest_delay;

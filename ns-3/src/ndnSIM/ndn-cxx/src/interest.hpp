@@ -220,6 +220,7 @@ public: // Name and guiders
   updateRouteHash( uint64_t link_id )
   {
     m_route_hash ^= link_id;
+    m_wire.reset();
     return *this;
   }
 

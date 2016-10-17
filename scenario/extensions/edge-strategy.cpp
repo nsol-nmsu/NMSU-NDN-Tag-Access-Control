@@ -1,6 +1,8 @@
 #include "edge-strategy.hpp"
 #include "ndn-cxx/encoding/block-helpers.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 #include "coordinator.hpp"
+#include "ndn-cxx/encoding/block-helpers.hpp"
 
 namespace ndntac
 {
@@ -13,47 +15,82 @@ namespace ndntac
   EdgeStrategy::s_edge_bloom_delay = ns3::NanoSeconds( 2535 );
   const ns3::Time
   EdgeStrategy::s_edge_interest_delay = ns3::MilliSeconds( 0 );
-  uint32_t EdgeStrategy::s_instance_id = 0;
-
+  
+  
   EdgeStrategy::EdgeStrategy( nfd::Forwarder& forwarder,
                               const ndn::Name& name )
                                 : RouterStrategy( forwarder, name )
                                 , m_positive_cache( 1e-10, 10000 )
                                 , m_negative_cache( 1e-10, 10000 )
-  {
-    m_instance_id = s_instance_id++;
-  }
+  { }
 
   bool
   EdgeStrategy::onIncomingInterest( nfd::Face& face,
                                     const ndn::Interest& const_interest )
   {
     // TODO: might need to add some interest freshness checks here
+    
+    // unconstify interest
+    ndn::Interest& interest = const_cast<ndn::Interest&>( const_interest );
+    
+    // update route hash
+    interest.updateRouteHash( m_instance_id );
+    
+    
+    // this is a simulation hack, we append an element to
+    // the end of interest names once they enter the network
+    // and remove the element once they exit the network, we do
+    // this to avoid reauthenticating tags at entry and exit of
+    // the network.  Real routers should know which direction packets
+    // are heading ( into or out of the edge router's network ), so
+    // this wouldn't be necessary in a real system.
+    if( interest.getName().get( -1 ) == ndn::name::Component("IN_NETWORK") )
+    {
+        // when a packet exits the network
+        interest.setName( interest.getName().getPrefix(-1) );
+        return RouterStrategy::onIncomingInterest( face, interest );
+    }
+    else
+    {
+        // when a packet enters the network
+        ndn::Name name = interest.getName();
+        name.append( "IN_NETWORK" );
+        interest.setName( name );
+    }
 
-    ndn::Interest interest( const_interest );
+    // get auth tag
     const ndn::AuthTag tag = interest.getAuthTag();
 
     // if interest is an AuthRequest then set its route hash
-    if( interest.getPayload().type() == ndn::tlv::ContentType_AuthRequest )
+    // in the name to be packaged by the authentication provider
+    if( interest.getName().get(-2) == ndn::name::Component("AUTH_TAG") )
     {
-      interest
-      .setPayload( ndn::Block( ndn::tlv::ContentType_AuthRequest,
-                   ndn::encoding
-                   ::makeNonNegativeIntegerBlock( ndn::tlv::RouteHash,
-                                                 interest.getRouteHash() ) ) );
+        ndn::Name name = interest.getName().getPrefix(-1);
+        name.appendNumber( interest.getRouteHash() );
+        name.append( "IN_NETWORK" );
+        interest.setName( name );
     }
     // otherwise ensure valid route hash
     else if( tag.getRouteHash() != interest.getRouteHash() )
     {
+      stringstream ss;
+      ss << "Invalid route hash '"
+      << interest.getRouteHash()
+      << "' should be '"
+      << tag.getRouteHash() << "'";
       Coordinator::edgeDroppingRequest( m_instance_id,
                                         interest.getName(),
-                                        "Invalid route hash");
-      auto data = make_shared< ndn::Data >( interest.getName() );
+                                        ss.str() );
+      // send nack
+      auto data = make_shared< ndn::Data >( interest.getName().getPrefix(-1) );
       data->setContentType( ndn::tlv::ContentType_Nack );
       data->setFreshnessPeriod( ndn::time::seconds( 0 ) );
+      data->setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+      data->wireEncode();
       m_queue.sendData( face.shared_from_this(), data );
       return true;
     }
+    
     
     // if access level is 0 we don't need to do anything
     if( tag.getAccessLevel() == 0 )
@@ -82,15 +119,18 @@ namespace ndntac
           // simulate verification time with a delay
           m_queue.delay( s_edge_signature_delay );
 
-          // non-negative signature value indicates valid signature for simulation
-          if( interest.getSignature().getValue().value_size() == 0 )
+          // dummy bad signature has 0 in first byte
+          if( interest.getSignature().getValue().value_size() == 0
+              || interest.getSignature().getValue().value()[0] == 0 )
           {
             Coordinator::edgeDroppingRequest( m_instance_id,
                                               interest.getName(),
                                               "Negative cache, bad signature");
-            auto data = make_shared< ndn::Data >( interest.getName() );
+            auto data = make_shared< ndn::Data >( interest.getName().getPrefix(-1) );
             data->setContentType( ndn::tlv::ContentType_Nack );
             data->setFreshnessPeriod( ndn::time::seconds( 0 ) );
+            data->setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+            data->wireEncode();
             m_queue.sendData( face.shared_from_this(), data );
             return true;
           }
@@ -119,8 +159,35 @@ namespace ndntac
 
   void
   EdgeStrategy::beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
-                                       const nfd::Face& inFace, const ndn::Data& data)
+                                       const nfd::Face& inFace,
+                                       const ndn::Data& const_data)
   {
+  
+    ndn::Data& data = const_cast<ndn::Data&>(const_data);
+    data.updateRouteHash( m_instance_id );
+    
+    // this is a simulation hack, we append an element to
+    // the end of data names once they enter the network
+    // and remove the element once they exit the network,
+    // we do this for consistency with interest names and
+    // to avaoid duplicate tag caching at both ends of the
+    // network
+    if( data.getName().get( -1 ) == ndn::name::Component("IN_NETWORK") )
+    {
+        // when a packet exits the network
+        data.setName( data.getName().getPrefix(-1) );
+    }
+    else
+    {
+        // when a packet enters the network
+        ndn::Name name = data.getName();
+        name.append( "IN_NETWORK" );
+        data.setName( name );
+    }
+    // data detects change in its name, so we need to re-sign
+    data.setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+    data.wireEncode();
+
     const ndn::AuthTag& tag = pitEntry->getInterest().getAuthTag();
 
     if( tag.getAccessLevel() > 0 )
@@ -144,20 +211,10 @@ namespace ndntac
                                      data.getName(),
                                      "negative");
         m_negative_cache.insert( tag );
-        auto data = make_shared< ndn::Data >( pitEntry->getInterest().getName() );
-        data->setContentType( ndn::tlv::ContentType_Nack );
-        data->setFreshnessPeriod( ndn::time::seconds( 0 ) );
-
-        auto in_records = pitEntry->getInRecords();
-        for( auto it = in_records.begin() ; it != in_records.end() ; it++ )
-        {
-          m_queue.sendData( it->getFace(), data );
-        }
-
-        m_forwarder.getPit().erase( pitEntry );
+        
+        // TODO: implement aggragation and auth denial
       }
     }
 
   }
-
 }

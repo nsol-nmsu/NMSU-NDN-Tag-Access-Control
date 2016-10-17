@@ -125,12 +125,10 @@ namespace ndntac
     {
           auto interest = make_shared<ndn::Interest>();
           interest->setNonce(Consumer::m_rand->GetValue(0, std::numeric_limits<uint32_t>::max()));
-          interest->setName(Consumer::m_interestName.getPrefix( 1 ).append("AUTH_TAG").appendNumber( m_instance_id ) );
-          ndn::Block payload( ndn::tlv::ContentType_AuthRequest,
-                              ndn::makeNonNegativeIntegerBlock( ndn::tlv::RouteHash, 0 ) );
-          interest->setPayload( payload );
+          interest->setName(Consumer::m_interestName.getPrefix( 1 ).append("AUTH_TAG") );
           ndn::time::milliseconds interestLifeTime(Consumer::m_interestLifeTime.GetMilliSeconds());
           interest->setInterestLifetime(interestLifeTime);
+          interest->setAuthTag( ndn::AuthTag( 0 ) );
 
           Consumer::WillSendOutInterest(0);
 
@@ -161,12 +159,19 @@ namespace ndntac
     void
     ConsumerWrapper<Consumer>::OnData( std::shared_ptr< const ndn::Data > data )
     {
-        if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
+        if( data->getName().get(1) == ndn::name::Component( "AUTH_TAG" ) )
         {
-            const ndn::Block& payload = data->getContent().blockFromValue();
-            m_auth_tag = make_shared<ndn::AuthTag>( payload );
-            m_pending_auth = false;
-            Coordinator::consumerReceivedAuth( m_instance_id, data->getName() );
+            if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
+            {
+                const ndn::Block& payload = data->getContent().blockFromValue();
+                m_auth_tag = make_shared<ndn::AuthTag>( payload );
+                m_pending_auth = false;
+                Coordinator::consumerReceivedAuth( m_instance_id, data->getName() );
+            }
+            else
+            {
+                Coordinator::consumerAuthDenied( m_instance_id, data->getName() );
+            }
         }
         else
         {

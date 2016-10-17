@@ -15,6 +15,7 @@
 #include "producer.hpp"
 #include "router-strategy.hpp"
 #include "edge-strategy.hpp"
+#include "local-strategy.hpp"
 #include "log-filter.hpp"
 #include "coordinator.hpp"
 #include "consumer-wrapper.hpp"
@@ -66,6 +67,7 @@ namespace ns3
             NodeContainer consumer_nodes;
             NodeContainer router_nodes;
             NodeContainer edge_nodes;
+            NodeContainer local_nodes;
             
             // seperate node types
             for( auto n = all_nodes.begin() ; n != all_nodes.end() ; n++ )
@@ -84,6 +86,8 @@ namespace ns3
                             case 'e':
                                     edge_nodes.Add( *n );
                                     break;
+                            case 'l':
+                                    local_nodes.Add( *n );
                             default:
                                     break;
                     }            
@@ -130,11 +134,16 @@ namespace ns3
             consumer_app.SetAttribute( "Window", StringValue("10") );
             consumer_app.Install( consumer_nodes );
             
-            // install access control router strategy on all normal routing nodes
+            // install normal router strategy on internet routers
             ndn::StrategyChoiceHelper::Install<ndntac::RouterStrategy>(router_nodes, "/");
             
             // and edge router strategy on all edge nodes
             ndn::StrategyChoiceHelper::Install<ndntac::EdgeStrategy>(edge_nodes, "/");
+            
+            // producers, consumers, and local routers all get local router strategies
+            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( consumer_nodes, "/" );
+            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( producer_nodes, "/" );
+            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( local_nodes, "/" );
             
             ndn::GlobalRoutingHelper::CalculateRoutes();
             

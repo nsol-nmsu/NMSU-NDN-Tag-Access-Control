@@ -1,5 +1,6 @@
 #include "router-strategy.hpp"
 #include "coordinator.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 
 namespace ndntac
 {
@@ -12,7 +13,7 @@ namespace ndntac
   RouterStrategy::s_router_bloom_delay = ns3::NanoSeconds( 2535 );
   const ns3::Time
   RouterStrategy::s_router_interest_delay = ns3::MilliSeconds( 0 );
-  uint32_t RouterStrategy::s_instance_id = 0;
+  uint32_t RouterStrategy::s_instance_id_offset = 0;
 
   RouterStrategy::RouterStrategy( nfd::Forwarder& forwarder,
                                   const ndn::Name& name )
@@ -20,7 +21,7 @@ namespace ndntac
                                     , m_auth_cache( 1e-10, 10000 )
                                     , m_forwarder( forwarder )
   {
-    m_instance_id = s_instance_id++;
+    m_instance_id = rand() + s_instance_id_offset++;
     Coordinator::addRouter( m_instance_id );
   }
 
@@ -108,8 +109,9 @@ namespace ndntac
      auto denial = make_shared< ndn::Data >( data.getName() );
      denial->setContentType( ndn::tlv::ContentType_AuthDenial );
      denial->setContent( data.wireEncode() );
-     denial->setSignatureValue( ndn::Block( ndn::tlv::SignatureValue, ndn::Block( "Not Empty", 9 ) ) );
      denial->setFreshnessPeriod( ndn::time::milliseconds(0));
+     denial->setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+     denial->wireEncode();
      return denial;
    }
 
@@ -118,27 +120,27 @@ namespace ndntac
                    const ndn::Data& const_data)
    {
      // unconstify data
-     auto data = std::shared_ptr<ndn::Data>( new ndn::Data( const_data ) );
+     ndn::Data& data = const_cast<ndn::Data&>( const_data );
 
      // if we have the data, verify the auth tag
      const ndn::AuthTag& tag = interest.getAuthTag();
 
      // access level of 0 does not need tag
-     if( data->getAccessLevel() == 0 )
+     if( data.getAccessLevel() == 0 )
      {
        Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-       m_queue.sendData( face.shared_from_this(), data );
+       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
        return;
      }
 
      // tags with invalid access level are refused
-     if( data->getAccessLevel() > tag.getAccessLevel() )
+     if( data.getAccessLevel() > tag.getAccessLevel() )
      {
        Coordinator::routerDeniedRequest( m_instance_id,
                                          interest.getName(),
                                          "AuthTag access level is too low");
        m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( *data ) );
+                         makeAuthDenial( data ) );
        return;
      }
 
@@ -149,39 +151,39 @@ namespace ndntac
                                          interest.getName(),
                                          "AuthTag is expired");
        m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( *data ) );
+                         makeAuthDenial( data ) );
        return;
      }
 
      // tags with wrong prefixes are refused
-     if( !tag.getPrefix().isPrefixOf( data->getName() ) )
+     if( !tag.getPrefix().isPrefixOf( data.getName() ) )
      {
        Coordinator::routerDeniedRequest( m_instance_id,
                                          interest.getName(),
                                          "AuthTag prefix does not match data" );
        m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( *data ) );
+                         makeAuthDenial( data ) );
        return;
      }
 
      // tags with non matching key locators are refused
-     if( !data->getSignature().hasKeyLocator() )
+     if( !data.getSignature().hasKeyLocator() )
      {
        Coordinator::routerDeniedRequest( m_instance_id,
                                          interest.getName(),
                                          "Requested data has no key locator");
        m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( *data ) );
+                         makeAuthDenial( data ) );
        return;
      }
-     if( tag.getKeyLocator() != data->getSignature().getKeyLocator() )
+     if( tag.getKeyLocator() != data.getSignature().getKeyLocator() )
      {
        Coordinator::routerDeniedRequest( m_instance_id,
                                          interest.getName(),
                                          "AuthTag key locator does not match "
                                          "data key locator" );
        m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( *data ) );
+                         makeAuthDenial( data ) );
        return;
      }
 
@@ -190,13 +192,13 @@ namespace ndntac
      if( (uint32_t)rand() < interest.getAuthValidityProb() )
      {
        Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-       m_queue.sendData( face.shared_from_this(), data );
+       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
        return;
      }
 
      // set NoReCache tag appropriately
      if( interest.getAuthValidityProb() > 0 )
-      data->setNoReCacheFlag( true );
+      data.setNoReCacheFlag( true );
 
      // AuthValidityProbability of 0 indicates that the edge router's bloom
      // filters didn't have any information on the tag so we lookup
@@ -207,20 +209,22 @@ namespace ndntac
        if( m_auth_cache.contains( tag ) )
        {
          Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-         m_queue.sendData( face.shared_from_this(), data );
+         m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
          return;
        }
      }
 
      // verify signature, we simulate actual verification delay by
      // adding delay to the transmit queue, signature is valid if it
-     // isn't empty, sine we don't need to actually validate for the
-     // simulation
+     // isn't doesn't equal DUMMY_BAD_SIGNATURE, which has 0 as its
+     // first byte
      m_queue.delay( s_router_signature_delay );
-     if( tag.getSignature().getValue().value_size() > 0 )
+     if( tag.getSignature().getValue().value_size() > 0
+         && tag.getSignature().getValue().value()[0] != 0 )
      {
-       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-       m_queue.sendData( face.shared_from_this(), data );
+       Coordinator::routerSatisfiedRequest( m_instance_id,
+                                            interest.getName() );
+       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
        m_auth_cache.insert( tag );
        return;
      }
@@ -229,13 +233,16 @@ namespace ndntac
      Coordinator::routerDeniedRequest( m_instance_id,
                                        interest.getName(),
                                        "Invalid AuthTag signature" );
-     m_queue.sendData( face.shared_from_this(), makeAuthDenial( *data ) );
+     m_queue.sendData( face.shared_from_this(),
+                       makeAuthDenial( data ) );
  }
 
- void RouterStrategy::onDataMiss( nfd::Face& face,
-                                  const ndn::Interest& interest )
+ void
+ RouterStrategy::onDataMiss( nfd::Face& face,
+                             const ndn::Interest& interest )
  {
    Coordinator::routerForwardedRequest( m_instance_id, interest.getName() );
-   // NADA
  }
+ 
+ 
 }

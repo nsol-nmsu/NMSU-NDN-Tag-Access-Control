@@ -171,7 +171,8 @@ namespace ndntac
           m_queue.delay( s_producer_bloom_delay );
           if( m_auth_cache.contains( tag ) )
           {
-            Coordinator::producerSatisfiedRequest( m_prefix, interest->getName() );
+            Coordinator::producerSatisfiedRequest( m_prefix,
+                                                   interest->getName() );
             m_queue.receiveData( m_face, data );
             return;
           }
@@ -179,12 +180,14 @@ namespace ndntac
 
       // verify signature, we simulate actual verification delay by
       // adding delay to the transmit queue, signature is valid if it
-      // isn't empty, since we don't need to actually validate for the
-      // simulation
+      // isn't equal to DUMMY_BAD_SIGNATURE, which has 0 as its first
+      // byte
       m_queue.delay( s_producer_signature_delay );
-      if( tag.getSignature().getValue().value_size() > 0 )
+      if( tag.getSignature().getValue().value_size() > 0
+          && tag.getSignature().getValue().value()[0] != 0 )
       {
-        Coordinator::producerSatisfiedRequest( m_prefix, interest->getName() );
+        Coordinator::producerSatisfiedRequest( m_prefix,
+                                               interest->getName() );
         m_queue.receiveData( m_face, data );
         m_auth_cache.insert( tag );
         return;
@@ -199,13 +202,7 @@ namespace ndntac
    {
       // since this is a simulation we don't do real identity
       // authentication, we just give an AuthTag to whomever asks for one
-      const ndn::Block& payload = interest->getPayload();
-      payload.parse();
-      if( payload.type() != ndn::tlv::ContentType_AuthRequest )
-        return;
-
-      ndn::Block hash = payload.get( ndn::tlv::RouteHash );
-      uint64_t route_hash = readNonNegativeInteger( hash );
+      uint64_t route_hash = interest->getName().get(-1).toNumber();
 
       ndn::AuthTag tag;
       tag.setPrefix( m_prefix );
