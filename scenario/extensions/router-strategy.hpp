@@ -44,11 +44,19 @@ namespace ndntac
        shared_ptr< ndn::Data >
        makeAuthDenial( const ndn::Data& data );
 
-       void onDataHit( nfd::Face& face,
-                       const ndn::Interest& interest,
+    protected:
+
+       virtual void
+       onDataHit( nfd::Face& face,
+                  const ndn::Interest& interest,
                        const ndn::Data& data);
-       void onDataMiss( nfd::Face& face,
-                        const ndn::Interest& interest );
+       virtual void
+       onDataMiss( nfd::Face& face,
+                   const ndn::Interest& interest );
+       bool
+       validateAccess( const ndn::Interest& interest,
+                       const ndn::Data& data );
+       
 
     public:
        static const ndn::Name STRATEGY_NAME;

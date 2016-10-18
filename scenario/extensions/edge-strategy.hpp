@@ -37,6 +37,11 @@ namespace ndntac
       bool
       onIncomingInterest( nfd::Face& face,
                           const ndn::Interest& interest ) override;
+      
+      void
+      onDataHit( nfd::Face& face,
+                 const ndn::Interest& interest,
+                 const ndn::Data& data );
 
       void
       beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,

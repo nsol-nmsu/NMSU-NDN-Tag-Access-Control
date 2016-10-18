@@ -77,8 +77,8 @@ namespace ndntac
         {
             Coordinator::routerOther( m_instance_id,
                                       string("DeAgragation of ")
-                                      + pitEntry->getInterest().getName().toUri() );
-            onDataHit( *iter->getFace(), pitEntry->getInterest(), data );
+                                      + entry_ptr->getInterest().getName().toUri() );
+            onDataHit( *iter->getFace(), entry_ptr->getInterest(), data );
         }
     }
     
@@ -122,117 +122,25 @@ namespace ndntac
      // unconstify data
      ndn::Data& data = const_cast<ndn::Data&>( const_data );
 
-     // if we have the data, verify the auth tag
-     const ndn::AuthTag& tag = interest.getAuthTag();
-
-     // access level of 0 does not need tag
-     if( data.getAccessLevel() == 0 )
+     if( validateAccess( interest, data ) )
      {
-       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
-       return;
-     }
-
-     // tags with invalid access level are refused
-     if( data.getAccessLevel() > tag.getAccessLevel() )
-     {
-       Coordinator::routerDeniedRequest( m_instance_id,
-                                         interest.getName(),
-                                         "AuthTag access level is too low");
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-
-     // interests with expired tags are refused
-     if( tag.isExpired() )
-     {
-       Coordinator::routerDeniedRequest( m_instance_id,
-                                         interest.getName(),
-                                         "AuthTag is expired");
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-
-     // tags with wrong prefixes are refused
-     if( !tag.getPrefix().isPrefixOf( data.getName() ) )
-     {
-       Coordinator::routerDeniedRequest( m_instance_id,
-                                         interest.getName(),
-                                         "AuthTag prefix does not match data" );
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-
-     // tags with non matching key locators are refused
-     if( !data.getSignature().hasKeyLocator() )
-     {
-       Coordinator::routerDeniedRequest( m_instance_id,
-                                         interest.getName(),
-                                         "Requested data has no key locator");
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-     if( tag.getKeyLocator() != data.getSignature().getKeyLocator() )
-     {
-       Coordinator::routerDeniedRequest( m_instance_id,
-                                         interest.getName(),
-                                         "AuthTag key locator does not match "
-                                         "data key locator" );
-       m_queue.sendData( face.shared_from_this(),
-                         makeAuthDenial( data ) );
-       return;
-     }
-
-     // only verify signature with a probability equivalent to
-     // the opposite probability of the interest's AuthValidityProbability
-     if( (uint32_t)rand() < interest.getAuthValidityProb() )
-     {
-       Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-       m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
-       return;
-     }
-
-     // set NoReCache tag appropriately
-     if( interest.getAuthValidityProb() > 0 )
-      data.setNoReCacheFlag( true );
-
-     // AuthValidityProbability of 0 indicates that the edge router's bloom
-     // filters didn't have any information on the tag so we lookup
-     // the tag in our bloom if prob is 0
-     if( interest.getAuthValidityProb() == 0 )
-     {
-       m_queue.delay( s_router_bloom_delay );
-       if( m_auth_cache.contains( tag ) )
-       {
-         Coordinator::routerSatisfiedRequest( m_instance_id, interest.getName() );
-         m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
-         return;
-       }
-     }
-
-     // verify signature, we simulate actual verification delay by
-     // adding delay to the transmit queue, signature is valid if it
-     // isn't doesn't equal DUMMY_BAD_SIGNATURE, which has 0 as its
-     // first byte
-     m_queue.delay( s_router_signature_delay );
-     if( tag.getSignature().getValue().value_size() > 0
-         && tag.getSignature().getValue().value()[0] != 0 )
-     {
+         // this tells the edge router that it has already
+         // cached the AuthTag used on this data, and shouldn't
+         // recache it, this is to reduce the workload of the
+         // edge router, preventing it from making repetitive
+         // bloom filter insertions of the same tag
+         if( interest.getAuthValidityProb() > 0 )
+          data.setNoReCacheFlag( true );
+          
        Coordinator::routerSatisfiedRequest( m_instance_id,
                                             interest.getName() );
        m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
-       m_auth_cache.insert( tag );
-       return;
      }
 
-     // bad signature
+     // bad signature, deny request
      Coordinator::routerDeniedRequest( m_instance_id,
                                        interest.getName(),
-                                       "Invalid AuthTag signature" );
+                                       "Failed validation" );
      m_queue.sendData( face.shared_from_this(),
                        makeAuthDenial( data ) );
  }
@@ -244,5 +152,67 @@ namespace ndntac
    Coordinator::routerForwardedRequest( m_instance_id, interest.getName() );
  }
  
- 
+ bool
+ RouterStrategy::validateAccess( const ndn::Interest& interest, const ndn::Data& data )
+ {
+    // extract tag
+    const ndn::AuthTag& tag = interest.getAuthTag();
+    
+    // access level of 0 is public
+    if( data.getAccessLevel() == 0 )
+        return true;
+    
+    // ensure valid access level
+    if( data.getAccessLevel() > tag.getAccessLevel() )
+        return false;
+    
+    // make sure the tag isn't expired
+    if( tag.isExpired() )
+        return false;
+    
+    // ensure matching prefix
+    if( !tag.getPrefix().isPrefixOf( data.getName() ) )
+        return false;
+    
+     // tags with non matching key locators are denied
+     if( !data.getSignature().hasKeyLocator() )
+         return false;
+     if( tag.getKeyLocator() != data.getSignature().getKeyLocator() )
+        return false;
+     
+     // only verify signature with a probability equivalent to
+     // the opposite probability of the interest's AuthValidityProbability
+     if( (uint32_t)rand() < interest.getAuthValidityProb() )
+        return true;
+
+     // AuthValidityProbability of 0 indicates that the edge router's bloom
+     // filters didn't have any information on the tag so we lookup
+     // the tag in our bloom if prob is 0
+     if( interest.getAuthValidityProb() == 0 )
+     {
+       
+       // simulate bloom lookup with delay
+       m_queue.delay( s_router_bloom_delay );
+       if( m_auth_cache.contains( tag ) )
+         return true;
+     }
+     
+     // verify signature, we simulate actual verification delay by
+     // adding delay to the transmit queue, signature is valid if it
+     // isn't doesn't equal DUMMY_BAD_SIGNATURE, which has 0 as its
+     // first byte
+     m_queue.delay( s_router_signature_delay );
+     if( tag.getSignature().getValue().value_size() > 0
+         && tag.getSignature().getValue().value()[0] != 0 )
+     {
+            // insert the tag into this router's auth cache
+            m_auth_cache.insert( tag );
+            
+            return true;
+     }
+    
+    // if any of the checks fail then return false
+    return false;
+
+ }
 }

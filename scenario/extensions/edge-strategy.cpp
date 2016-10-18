@@ -156,21 +156,20 @@ namespace ndntac
     // do normal router stuff
     return RouterStrategy::onIncomingInterest( face, interest );
   }
-
-  void
-  EdgeStrategy::beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
-                                       const nfd::Face& inFace,
-                                       const ndn::Data& const_data)
-  {
   
-    ndn::Data& data = const_cast<ndn::Data&>(const_data);
-    data.updateRouteHash( m_instance_id );
-    
+   void
+   EdgeStrategy::onDataHit( nfd::Face& face,
+                            const ndn::Interest& interest,
+                            const ndn::Data& const_data)
+   {
+     // unconstify data
+     ndn::Data& data = const_cast<ndn::Data&>( const_data );
+
     // this is a simulation hack, we append an element to
     // the end of data names once they enter the network
     // and remove the element once they exit the network,
     // we do this for consistency with interest names and
-    // to avaoid duplicate tag caching at both ends of the
+    // to avoid duplicate tag caching at both ends of the
     // network
     if( data.getName().get( -1 ) == ndn::name::Component("IN_NETWORK") )
     {
@@ -184,22 +183,70 @@ namespace ndntac
         name.append( "IN_NETWORK" );
         data.setName( name );
     }
-    // data detects change in its name, so we need to re-sign
-    data.setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
-    data.wireEncode();
+    
+    RouterStrategy::onDataHit( face, interest, data );
+ }
 
-    const ndn::AuthTag& tag = pitEntry->getInterest().getAuthTag();
-
-    if( tag.getAccessLevel() > 0 )
+  void
+  EdgeStrategy::beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
+                                       const nfd::Face& inFace,
+                                       const ndn::Data& const_data)
+  {
+  
+    // this is the data that will be forwarded in reponse to the
+    // top level request, so we need to make a copy to send to
+    // lower level requests
+    ndn::Data& forward_data = const_cast<ndn::Data&>(const_data);
+    forward_data.updateRouteHash( m_instance_id );
+    
+    // this is a simulation hack, we append an element to
+    // the end of data names once they enter the network
+    // and remove the element once they exit the network,
+    // we do this for consistency with interest names and
+    // to avoid duplicate tag caching at both ends of the
+    // network
+    if( forward_data.getName().get( -1 ) == ndn::name::Component("IN_NETWORK") )
     {
+        // when a packet exits the network
+        forward_data.setName( forward_data.getName().getPrefix(-1) );
+    }
+    else
+    {
+        // when a packet enters the network
+        ndn::Name name = forward_data.getName();
+        name.append( "IN_NETWORK" );
+        forward_data.setName( name );
+    }
+    
+    // we create two data packets, one is for interests
+    // whose validation is successfull, the other is for those that fail
+    auto data = make_shared<ndn::Data>();
+    *data = forward_data;
+    data->setContentType( ndn::tlv::ContentType_Blob );
+    auto nack = make_shared<ndn::Data>( data->getName() );
+    nack->setContentType( ndn::tlv::ContentType_Nack );
+    
+
+    // since this is an edge router it needs to treat denials
+    // special to ensure that their data doesn't leave the network,
+    // so it replaces all denials with nacks, in all interests that
+    // don't achieve authentication, the 'data' passed as parameter
+    // to this function is automatically sent as the response to
+    // the interest that was sent to request the data, so if we receive
+    // a denial then we need to change it into a Nack, and validate
+    // the related intersts
+    const ndn::AuthTag& tag = pitEntry->getInterest().getAuthTag();
+    if( data->getAccessLevel() > 0 )
+    {
+      // validate the first interest ( the one sent as the request )
       // if tag access > 0 then cache the tag if data is not denial
-      if( data.getContentType() != ndn::tlv::ContentType_AuthDenial
-       && data.getContentType() != ndn::tlv::ContentType_Nack )
+      if( data->getContentType() != ndn::tlv::ContentType_AuthDenial
+       && data->getContentType() != ndn::tlv::ContentType_Nack )
       {
-        if( !data.getNoReCacheFlag() )
+        if( !data->getNoReCacheFlag() )
         {
           Coordinator::edgeCachingTag( m_instance_id,
-                                       data.getName(),
+                                       data->getName(),
                                        "positive");
           m_positive_cache.insert( tag );
         }
@@ -208,12 +255,56 @@ namespace ndntac
       else
       {
         Coordinator::edgeCachingTag( m_instance_id,
-                                     data.getName(),
+                                     data->getName(),
                                      "negative");
         m_negative_cache.insert( tag );
         
-        // TODO: implement aggragation and auth denial
+        forward_data.setContent( ndn::Block() );
+        forward_data.setContentType( ndn::tlv::ContentType_Nack );
+        forward_data.setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
+        forward_data.wireEncode();
       }
+      
+      // validate all related interests
+        shared_ptr< nfd::pit::Entry > entry_ptr = pitEntry;
+        while( ( entry_ptr = entry_ptr->nextRelatedEntry() ) != NULL  )
+        {
+            auto in_records = entry_ptr->getInRecords();
+            for( auto iter = in_records.begin() ; iter != in_records.end() ; iter++ )
+            {
+                Coordinator::routerOther( m_instance_id,
+                                        string("DeAgragation of ")
+                                        + entry_ptr->getInterest().getName().toUri() );
+                
+                if( validateAccess( entry_ptr->getInterest(), *data ) )
+                {
+                    if( entry_ptr->getInterest().getAuthValidityProb() > 0 )
+                        m_positive_cache.insert( tag );
+                        
+                    m_queue.sendData( iter->getFace(), data->shared_from_this() );
+                }
+                else
+                {
+                    m_queue.sendData( iter->getFace(), nack->shared_from_this() );
+                }
+            }
+        }
+    }
+    
+    // if access level of data is 0 ( public ) then just send
+    // the data to all requesting parties
+    shared_ptr< nfd::pit::Entry > entry_ptr = pitEntry;
+    while( ( entry_ptr = entry_ptr->nextRelatedEntry() ) != NULL  )
+    {
+        auto in_records = entry_ptr->getInRecords();
+        for( auto iter = in_records.begin() ; iter != in_records.end() ; iter++ )
+        {
+            Coordinator::routerOther( m_instance_id,
+                                    string("DeAgragation of ")
+                                    + entry_ptr->getInterest().getName().toUri() );
+                                    
+            m_queue.sendData( iter->getFace(), data->shared_from_this() );
+        }
     }
 
   }
