@@ -150,7 +150,7 @@ namespace ns3
             
             Coordinator::simulationStarted( Coordinator::LogFilter(),
                                             "scenarios/auth-tag-simulation/logs/SIMUATION.log" );
-            Simulator::Stop( Seconds( 100 ) );
+            Simulator::Stop( Seconds( 10 ) );
             Simulator::Run();
             Simulator::Destroy();
             Coordinator::simulationFinished();

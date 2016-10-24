@@ -1,0 +1,37 @@
+<!-- Need to implement an XML parser for the simulation later for easier testing -->
+<config>
+    <producer x="0" y="1" prefix="google.com" id="google1" >
+        <content name="img1.png" size="10M" access-level="1" />
+        <content name="img2.jpeg" size="1M" access-level="1" />
+        <content name="img3.png" size="1K" access-level="2" />
+    </producer>
+    <producer x="0" y="0" prefix="facebook.com" id="facebook1" >
+        <content name="img1.png" size="10M" access-level="1" />
+        <content name="img2.jpeg" size="1M" access-level="1" />
+        <content name="img3.png" size="1K" access-level="2" />
+    </producer>
+    <producer x="0" y="-1" prefix="netflix.com"  id="netflix1" >
+        <content name="vid1.png" size="10M" access-level="1" />
+        <content name="vid2.jpeg" size="1M" access-level="1" />
+        <content name="vid3.png" size="1K" access-level="2" />
+    </producer>
+    
+    <basic-consumer x="5" y="1" id="consumer1"
+                    interest-lifetime="2s"
+                    retx-timer="50ms"
+                    q="0.7"
+                    s="0.7"
+                    interval-mean="5s"
+                    interval-bound="10s"
+                    window-init="1"
+                    window-max="20" >
+        <content prefix="google.com" name="img1.png" popularity="5" />
+        <content prefix="facebook.com" name="img2.jpeg" popularity="2" /> 
+    </basic-consumer>
+    
+    <link from="consumer1" to="google1"
+          bandwidth="512Mbps"
+          metric="1"
+          delay="10ms"
+          queue="10" />
+</config>

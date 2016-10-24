@@ -135,6 +135,7 @@ namespace ndntac
        Coordinator::routerSatisfiedRequest( m_instance_id,
                                             interest.getName() );
        m_queue.sendData( face.shared_from_this(), data.shared_from_this() );
+       return;
      }
 
      // bad signature, deny request
@@ -166,6 +167,10 @@ namespace ndntac
     if( data.getAccessLevel() > tag.getAccessLevel() )
         return false;
     
+    /**
+    * We can move the expiration and prefix check
+    * to the edge router, TODO
+    **/
     // make sure the tag isn't expired
     if( tag.isExpired() )
         return false;

@@ -120,8 +120,8 @@ namespace ndntac
           m_queue.delay( s_edge_signature_delay );
 
           // dummy bad signature has 0 in first byte
-          if( interest.getSignature().getValue().value_size() == 0
-              || interest.getSignature().getValue().value()[0] == 0 )
+          if( tag.getSignature().getValue().value_size() == 0
+              || tag.getSignature().getValue().value()[0] == 0 )
           {
             Coordinator::edgeDroppingRequest( m_instance_id,
                                               interest.getName(),
@@ -141,6 +141,9 @@ namespace ndntac
                                               0xFFFFFFFF,
                                               "Negative cache, verified manually");
           interest.setAuthValidityProb( 0xFFFFFFFF );
+          
+          // insert tag into positive filter
+          m_positive_cache.insert( tag );
         }
         // if not in either cache
         else
@@ -254,10 +257,13 @@ namespace ndntac
       // if auth denial then send nack
       else
       {
-        Coordinator::edgeCachingTag( m_instance_id,
-                                     data->getName(),
-                                     "negative");
-        m_negative_cache.insert( tag );
+        if( !data->getNoReCacheFlag() )
+        {
+            Coordinator::edgeCachingTag( m_instance_id,
+                                         data->getName(),
+                                         "negative");
+            m_negative_cache.insert( tag );
+        }
         
         forward_data.setContent( ndn::Block() );
         forward_data.setContentType( ndn::tlv::ContentType_Nack );
