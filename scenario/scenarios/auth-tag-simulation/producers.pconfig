@@ -8,19 +8,19 @@
 
 "netflix.com":
 "vid1.mp4"   512K   1   1
-"vid2.mp4"   1M     1   1
-"vid3.mp4"   2M     1   1
-"vid4.vlc"   3M     1   1
+#"vid2.mp4"   1M     1   1
+#"vid3.mp4"   2M     1   1
+#"vid4.vlc"   3M     1   1
 
-"google.com":
-"img1.png"   1M     1   0
-"img2.png"   512K   1   1
-"img3.png"   5M     2   2
-"img4.png"   512B   3   4
+#"google.com":
+#"img1.png"   1M     1   0
+#"img2.png"   512K   1   1
+#"img3.png"   5M     2   2
+#"img4.png"   512B   3   4
 
-"facebook.com":
-"me.file"     5G    1   2
-"you.file"    1K    2   5
-"other.file"  512K  2   3
-"prof.png"    5M    3   5
+#"facebook.com":
+#"me.file"     5G    1   2
+#"you.file"    1K    2   5
+#"other.file"  512K  2   3
+#"prof.png"    5M    3   5
 

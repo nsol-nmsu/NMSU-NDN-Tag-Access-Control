@@ -37,6 +37,7 @@
 #include "key-locator.hpp"
 #include "management/nfd-local-control-header.hpp"
 #include "tag-host.hpp"
+#include "route-tracker.hpp"
 
 namespace ndn {
 
@@ -93,6 +94,11 @@ public:
    */
   explicit
   Data(const Block& wire);
+  
+  /**
+  * @brief Copy
+  **/
+  Data( const Data& );
 
   /**
    * @brief Fast encoding or block size estimation
@@ -314,14 +320,41 @@ public:
   /**
   * @brief Get the route hash
   **/
-  uint32_t
-  getRouteHash() const;
+  const RouteTracker&
+  getRouteTracker() const;
+  
+  /**
+  * @brief Get current network type
+  **/
+  RouteTracker::NetworkType
+  getCurrentNetwork() const;
+  
+  /**
+  * @brief has route tracker
+  **/
+  bool
+  hasRouteTracker() const;
+  
+  ///@{
+  /**
+  * @brief get specific route hashes
+  **/
+  uint64_t getEntryRoute() const;
+  uint64_t getInternetRoute() const;
+  uint64_t getExitRoute() const;
+  ///@}
+  
+  /**
+  * @brief Set the route tracker
+  **/
+  Data&
+  setRouteTracker( const RouteTracker& tracker );
 
   /**
   * @brief Update the route hash with the given link identifier
   **/
   void
-  updateRouteHash( uint32_t link_id );
+  updateRoute( uint32_t link_id );
 
   ///////////////////////////////////////////////////////////////
 
@@ -344,6 +377,8 @@ public:
   setCachingPolicy(nfd::LocalControlHeader::CachingPolicy cachingPolicy);
 
 public: // EqualityComparable concept
+  Data&
+  operator=( const Data& other );
   bool
   operator==(const Data& other) const;
 
@@ -364,7 +399,7 @@ private:
   Signature m_signature;
   uint8_t   m_access_level = 0;
   bool      m_no_recache_flag = false;
-  uint64_t  m_route_hash = 0;
+  unique_ptr<RouteTracker> m_route_tracker;
 
   mutable Block m_wire;
   mutable Name m_fullName;
@@ -446,17 +481,57 @@ Data::setNoReCacheFlag( bool flag )
   return *this;
 }
 
-inline uint32_t
-Data::getRouteHash() const
+inline const RouteTracker&
+Data::getRouteTracker() const
 {
-  return m_route_hash;
+if ( !m_route_tracker )
+  BOOST_THROW_EXCEPTION(Error("Requested RouteTracker does not exist"));
+return *m_route_tracker;
+}
+
+inline RouteTracker::NetworkType
+Data::getCurrentNetwork() const
+{
+    return m_route_tracker->getCurrentNetwork();
+}
+
+inline bool
+Data::hasRouteTracker() const
+{
+    return m_route_tracker != NULL;
+}
+
+inline uint64_t
+Data::getEntryRoute() const
+{
+    return m_route_tracker->getEntryRoute();
+}
+
+inline uint64_t
+Data::getInternetRoute() const
+{
+    return m_route_tracker->getInternetRoute();
+}
+
+inline uint64_t
+Data::getExitRoute() const
+{
+    return m_route_tracker->getExitRoute();
+}
+
+inline Data&
+Data::setRouteTracker( const RouteTracker& tracker )
+{
+    m_route_tracker.reset( new RouteTracker( tracker ) );
+    m_wire.reset();
+    return *this;
 }
 
 inline void
-Data::updateRouteHash( uint32_t link_id )
+Data::updateRoute( uint32_t link_id )
 {
-  m_route_hash ^= link_id;
-  onChanged();
+    m_route_tracker->update( link_id );
+    m_wire.reset();
 }
 
 inline nfd::LocalControlHeader&

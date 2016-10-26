@@ -34,15 +34,6 @@ namespace ndntac
       EdgeStrategy( nfd::Forwarder& forwarder,
                       const ndn::Name& name = STRATEGY_NAME );
 
-      bool
-      onIncomingInterest( nfd::Face& face,
-                          const ndn::Interest& interest ) override;
-      
-      void
-      onDataHit( nfd::Face& face,
-                 const ndn::Interest& interest,
-                 const ndn::Data& data );
-
       void
       beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
                              const nfd::Face& inFace,

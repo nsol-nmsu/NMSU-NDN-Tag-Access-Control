@@ -229,8 +229,25 @@ DefaultSimulatorImpl::Schedule (Time const &delay, EventImpl *event)
 {
   NS_LOG_FUNCTION (this << delay.GetTimeStep () << event);
   NS_ASSERT_MSG (SystemThread::Equals (m_main), "Simulator::Schedule Thread-unsafe invocation!");
+  
+  /*
+  * HACK by Ray Stubbs [stubbs.ray@gmail.com]
+  * for convenience, if delay is 0 DON'T break
+  * just call the ScheduleNow() function.
+  */
+  if( delay == 0 )
+    return ScheduleNow( event );
+  /* END HACK */
 
   Time tAbsolute = delay + TimeStep (m_currentTs);
+  
+  // Debug temp
+  if( !(tAbsolute >= TimeStep (m_currentTs)) )
+  {
+    std::cout << "Delay is: " << delay << std::endl;
+    std::cout << "CurrentTs is: " << m_currentTs << std::endl;
+    std::cout << "TAbsolute is: " << tAbsolute << std::endl;
+  }
 
   NS_ASSERT (tAbsolute.IsPositive ());
   NS_ASSERT (tAbsolute >= TimeStep (m_currentTs));

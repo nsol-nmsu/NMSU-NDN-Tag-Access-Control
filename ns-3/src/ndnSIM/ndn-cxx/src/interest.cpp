@@ -55,6 +55,11 @@ Interest::Interest(const Block& wire)
   wireDecode(wire);
 }
 
+Interest::Interest( const Interest& other )
+{
+    wireDecode( other.wireEncode() );
+}
+
 uint32_t
 Interest::getNonce() const
 {
@@ -222,20 +227,18 @@ Interest::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion ) cons
   //                  Nonce
   //                  InterestLifetime?
   //                  AuthTag?
-  //                  Payload?
   //                  SignatureInfo
   //                SignatureValue
   //                AuthValidityProbability
-  //                RouteHash
+  //                RouteTracker
 
   // (reverse encoding)
 
   if( !only_signed_portion )
   {
-    // RouteHash
-    totalLength += prependNonNegativeIntegerBlock( encoder,
-                                                   tlv::RouteHash,
-                                                   m_route_hash );
+    // RouteTracker
+    if( m_route_tracker )
+        totalLength += m_route_tracker->wireEncode( encoder );
 
     // AuthValidityProbability
     if( m_auth_validity_prob > 0 )
@@ -253,16 +256,10 @@ Interest::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion ) cons
   // SignatureInfo
   signed_length += encoder.prependBlock( m_signature.getInfo() );
 
-  // Payload
-  if( !m_payload.empty() )
-    signed_length += encoder.prependBlock( m_payload );
-
 
   // AuthTag
-  if( m_auth_tag.getAccessLevel() > 0 )
-  {
-    signed_length += m_auth_tag.wireEncode( encoder );
-  }
+  if( m_auth_tag )
+    signed_length += m_auth_tag->wireEncode( encoder );
 
   // InterestLifetime
   if (getInterestLifetime() >= time::milliseconds::zero() &&
@@ -308,13 +305,17 @@ const Block&
 Interest::wireEncode(EncodingImpl<TAG>& encoder, const Block& signatureValue ) const
 {
   size_t totalLength = encoder.size();
+  
+  // SignatureValue
   totalLength += encoder.appendBlock(signatureValue);
+  
+  // AuthValidityProb
     totalLength += encoder
       .appendBlock( makeNonNegativeIntegerBlock( tlv::AuthValidityProbability,
                                                   m_auth_validity_prob ) );
-  totalLength += encoder
-                 .appendBlock( makeNonNegativeIntegerBlock( tlv::RouteHash,
-                                                            m_route_hash ) );
+  // RouteTracker
+  if( m_route_tracker )
+      totalLength += encoder.appendBlock( m_route_tracker->wireEncode() );
 
   encoder.prependVarNumber(totalLength);
   encoder.prependVarNumber(tlv::Interest);
@@ -359,11 +360,10 @@ Interest::wireDecode(const Block& wire)
   //                  Nonce
   //                  InterestLifetime?
   //                  AuthTag?
-  //                  Payload?
   //                  SignatureInfo
   //                SignatureValue
   //                AuthValidityProbability
-  //                RouteHash
+  //                RouteTracker
 
   if (m_wire.type() != tlv::Interest)
     BOOST_THROW_EXCEPTION(Error("Unexpected TLV number when decoding Interest"));
@@ -401,12 +401,7 @@ Interest::wireDecode(const Block& wire)
   // AuthTag
   val = sportion.find( tlv::AuthTag );
   if( val != sportion.elements_end() )
-    m_auth_tag.wireDecode( *val );
-
-  // Payload
-  val = sportion.find( tlv::Payload );
-  if( val != sportion.elements_end() )
-    m_payload = *val;
+    setAuthTag( AuthTag( *val ) );
 
   // SignatureInfo
   m_signature.setInfo( sportion.get( tlv::SignatureInfo ) );
@@ -425,9 +420,10 @@ Interest::wireDecode(const Block& wire)
   else
     m_auth_validity_prob = 0;
 
-  // RouteHash
-  m_route_hash = readNonNegativeInteger( m_wire.get( tlv::RouteHash ) );
-
+  // RouteTracker
+  val = m_wire.find( tlv::RouteTracker );
+  if( val != m_wire.elements_end() )
+    setRouteTracker( RouteTracker( *val ) );
 
 }
 

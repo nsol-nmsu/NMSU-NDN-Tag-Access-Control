@@ -30,6 +30,7 @@
 #include "management/nfd-local-control-header.hpp"
 #include "tag-host.hpp"
 #include "auth-tag.hpp"
+#include "route-tracker.hpp"
 
 namespace ndn {
 
@@ -59,6 +60,16 @@ public:
       : tlv::Error(what)
     {
     }
+  };
+  
+  /**
+  * @brief Network types, @see m_current_network
+  **/
+  enum NetworkType
+  {
+    ENTRY_NETWORK = 0,
+    INTERNET_NETWORK = 1,
+    EXIT_NETWORK = 2
   };
 
   /** @brief Create a new Interest with an empty name (`ndn:/`)
@@ -90,6 +101,11 @@ public:
   explicit
   Interest(const Block& wire);
 
+  /**
+  * @brief Copy
+  **/
+  Interest( const Interest& other );
+  
   /**
    * @brief Fast encoding or block size estimation
    */
@@ -186,13 +202,43 @@ public: // Name and guiders
   const AuthTag&
   getAuthTag() const
   {
-    return m_auth_tag;
+    if ( !m_auth_tag )
+      BOOST_THROW_EXCEPTION(Error("Requested AuthTag tag does not exist"));
+    return *m_auth_tag;
+  }
+  
+  const RouteTracker&
+  getRouteTracker() const
+  {
+    if ( !m_route_tracker )
+      BOOST_THROW_EXCEPTION(Error("Requested RouteTracker does not exist"));
+    return *m_route_tracker;
+  }
+  
+  const bool
+  hasAuthTag() const
+  {
+    return m_auth_tag != NULL;
+  }
+  
+  const bool
+  hasRouteTracker() const
+  {
+    return m_route_tracker != NULL;
   }
 
   Interest&
   setAuthTag( const AuthTag& tag )
   {
-    m_auth_tag = tag;
+    m_auth_tag.reset( new AuthTag( tag ) );
+    m_wire.reset();
+    return *this;
+  }
+  
+  Interest&
+  setRouteTracker( const RouteTracker& tracker )
+  {
+    m_route_tracker.reset( new RouteTracker( tracker ) );
     m_wire.reset();
     return *this;
   }
@@ -209,49 +255,45 @@ public: // Name and guiders
     m_wire.reset();
     return *this;
   }
+  
+  uint64_t
+  getEntryRoute() const
+  {
+    return getRouteTracker().getEntryRoute();
+  }
 
   uint64_t
-  getRouteHash() const
+  getInternetRoute() const
   {
-    return m_route_hash;
+    return getRouteTracker().getInternetRoute();
+  }
+
+  uint64_t
+  getExitRoute() const
+  {
+    return getRouteTracker().getExitRoute();
+  }
+  
+  NetworkType
+  getCurrentNetwork() const
+  {
+    return m_current_network;
   }
 
   Interest&
-  updateRouteHash( uint64_t link_id )
+  updateRoute( uint64_t link_id )
   {
-    m_route_hash ^= link_id;
+    if( !m_route_tracker )
+        setRouteTracker( RouteTracker() );
+    m_route_tracker->update( link_id );
     m_wire.reset();
     return *this;
   }
-
-  const Block&
-  getPayload() const
-  {
-    if (m_payload.empty())
-      m_payload = makeEmptyBlock(tlv::Payload);
-
-    if (!m_payload.hasWire())
-      m_payload.encode();
-    
-    static Block pl;
-    if( m_payload.value_size() > 0 )
-        pl = m_payload.blockFromValue();
-    else
-    {
-        pl = Block( ndn::tlv::ContentType_Blob );
-        pl.encode();
-    }
-    return pl;
-  }
-
+  
   Interest&
-  setPayload( const Block& payload )
+  setCurrentNetwork( RouteTracker::NetworkType type )
   {
-    Block pl = payload;
-    if( !pl.hasWire() )
-        pl.encode();
-    m_payload = Block( tlv::Payload, pl );
-    m_wire.reset();
+    m_route_tracker->setCurrentNetwork( type );
     return *this;
   }
 
@@ -481,11 +523,42 @@ private:
   Selectors m_selectors;
   mutable Block m_nonce;
   time::milliseconds m_interestLifetime;
-  AuthTag m_auth_tag;
+  unique_ptr<AuthTag> m_auth_tag;
+  unique_ptr<RouteTracker> m_route_tracker;
   Signature m_signature;
   uint32_t m_auth_validity_prob = 0;
-  uint64_t m_route_hash = 0;
-  mutable Block m_payload;
+  
+  ///@{
+  /**
+  * @brief Route hashes, all routers in the network will XOR one of these
+  *        hashes with the ID of the incoming link, which hash is updated
+  *        depends on router location
+  *
+  * Routers local to the client network will update the m_entry_route.
+  * All routers in between the client local network and the provider local network
+  * will update the m_internet_route hash.
+  * Routers in the producer local network will update the m_exit_route
+  * 
+  * Keeping these routes separate allows for finer grained control route tracking,
+  * we can get the full route hash by XORing all hashes together.
+  **/
+  uint64_t m_internet_route = 0;
+  uint64_t m_entry_route = 0;
+  uint64_t m_exit_route = 0;
+  ///@}
+  
+  /**
+  * @brief Keeps track of the current location of the interest
+  *
+  * This is used by the routers to know which route hash to update
+  *
+  * It'll either be set to
+  * 0 = Client Local Network = ENTRY_NETWORK,
+  * 1 = Intermediate Network = INTERNET_NETWORK,
+  * 2 = Provider Local Network = EXIT_NETWORK
+  **/
+  NetworkType m_current_network;
+  
 
   mutable Block m_wire;
 

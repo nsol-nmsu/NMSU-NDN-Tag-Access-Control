@@ -20,16 +20,17 @@
 #define TX_QUEUE_INCLUDED
 
 #include "ns3/core-module.h"
-#include "ns3/ndnSIM-module.h"
 #include "ndn-cxx/interest.hpp"
 #include "ndn-cxx/data.hpp"
 #include <boost/variant.hpp>
 #include <boost/tuple/tuple.hpp>
+#include <memory>
 #include <mutex>
 
 namespace ndntac
 {
-
+  using namespace std;
+  
   /* Events of each type and a general event */
   typedef std::pair< shared_ptr< nfd::Face >,
                      shared_ptr< const ndn::Interest > >  SendInterestEvent;

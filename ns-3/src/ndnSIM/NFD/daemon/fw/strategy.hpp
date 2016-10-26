@@ -22,6 +22,12 @@
  * You should have received a copy of the GNU General Public License along with
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+ /**
+ * This file has been modified from its original form
+ * by Ray Stubbs [stubbs.ray@gmail.com] to accomodate
+ * the needs of a specific simulation.
+ **/
 
 #ifndef NFD_DAEMON_FW_STRATEGY_HPP
 #define NFD_DAEMON_FW_STRATEGY_HPP
@@ -117,23 +123,51 @@ public: // triggers
   beforeExpirePendingInterest(shared_ptr<pit::Entry> pitEntry);
 
   /**
-  * @brief Called before an interest is added to the PIT
+  * @brief Called before a pit entry is satisfied to give
+  * the strategy the final say on which requests are satisfied.
+  *
+  * Also allows the strategy to modify the data that'll be received
+  * by for each request; and allows the strategy to specify how long
+  * it would have taken ( if it was running on real hardware ) to
+  * complete its work.
+  * 
   * @note This is a mod by Ray Stubbs [stubbs.ray@gmail.com]
-  * Return true to indicate that the interest has been handled
-  * by the strategy, false to continue with forwarder's default
-  * interest handling.
+  *       for use in a specific simulation.
+  *
+  * @param[in]      face         The face to forward the data to
+  * @param[in]      interest     The interest that requested the data
+  * @param[in|out]  data         The data to be used to statisfy the request
+  * @param[in|out]  delay        The processing delay ( computational overhead ) to simulate
+  *                              for the request
+  * @return true if the request should be satisfied with data, false if the request
+  *         should be dropped.
   **/
   virtual bool
-  onIncomingInterest( Face& face, const Interest& interest ){ return false; };
+  filterOutgoingData( const Face&,
+                      const Interest& interest,
+                      Data& data,
+                      ns3::Time& delay ){ return true; };
 
   /**
-  * @brief Called before checking for PIT entries for data requests
-  * @note This is a mod by Ray Stubs [stubbs.ray@gmail.com]
-  * Return true to indicate that the data has been handled by the strategy
-  * or false to have the forwarder handle the data in the default way.
+  * @brief Called before an interest is forwarded to give the
+  *        final forwarding decision to the strategy
+  *
+  * Also allows the strategy to modify the interest to be
+  * forwarded.
+  * 
+  * @note This is a mod by Ray Stubbs [stubbs.ray@gmail.com]
+  *       for use in a specific simulation.
+  *
+  * @param[in]      face         The face to forward the data to
+  * @param[in|out]  interest     Interest to be forwarded
+  * @param[in|out]  delay        The processing delay ( computational overhead ) to simulate
+  *                              for the interest
+  * @return true if the interest should be forwarded or false if it should be dropped.
   **/
   virtual bool
-  onIncomingData( Face& face, const Data& data ){ return false; }
+  filterOutgoingInterest( const Face& face,
+                          Interest& interest,
+                          ns3::Time& delay ){ return true; };
 
 protected: // actions
   /// send Interest to outFace

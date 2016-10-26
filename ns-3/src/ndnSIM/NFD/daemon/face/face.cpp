@@ -64,14 +64,12 @@ Face::decodeAndDispatchInput(const Block& element)
     if (element.type() == tlv::Interest)
       {
         shared_ptr<Interest> i = make_shared<Interest>();
-        i->updateRouteHash( (uint64_t)getId() & (uint64_t)getId() << 32 );
         i->wireDecode(element);
         this->onReceiveInterest(*i);
       }
     else if (element.type() == tlv::Data)
       {
         shared_ptr<Data> d = make_shared<Data>();
-        d->updateRouteHash( (uint64_t)getId() & (uint64_t)getId() << 32 );
         d->wireDecode(element);
         this->onReceiveData(*d);
       }

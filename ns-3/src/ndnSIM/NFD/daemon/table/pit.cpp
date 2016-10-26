@@ -75,8 +75,7 @@ Pit::insert(const Interest& interest)
   auto it = std::find_if(pitEntries.begin(), pitEntries.end(),
                          [&interest] (const shared_ptr<pit::Entry>& entry) {
                            return entry->getInterest().getName() == interest.getName() &&
-                                  entry->getInterest().getSelectors() == interest.getSelectors() &&
-                                  entry->getInterest().getPayload() == interest.getPayload();
+                                  entry->getInterest().getSelectors() == interest.getSelectors();
                          });
   if (it != pitEntries.end()) {
     return { *it, false };

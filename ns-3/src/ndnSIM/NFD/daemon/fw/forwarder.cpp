@@ -22,6 +22,12 @@
  * You should have received a copy of the GNU General Public License along with
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+ /**
+ * This file has been modified from its original form
+ * by Ray Stubbs [stubbs.ray@gmail.com] to accomodate
+ * the needs of a specific simulation.
+ **/
 
 #include "forwarder.hpp"
 #include "core/logger.hpp"
@@ -67,6 +73,9 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
   
   const_cast<Interest&>(interest).setIncomingFaceId(inFace.getId());
   ++m_counters.getNInInterests();
+  
+  // update route hash
+  const_cast<Interest&>(interest).updateRoute( (uint64_t)inFace.getId() << 31 || inFace.getId() );
 
   // /localhost scope control
   bool isViolatingLocalhost = !inFace.isLocal() &&
@@ -77,16 +86,6 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
     // (drop)
     return;
   }
-
-  /*
-  * HACK: Added by Ray Stubbs [stubbs.ray@gmail.com]
-  * If Strategy::onIncomingInterest(...) returns true then the interest
-  * has already been dealt with by the strategy, otherwise continue
-  * normally.
-  */
-  fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy( interest.getName() );
-  if( strategy.onIncomingInterest( inFace, interest ) )
-    return;
 
   // PIT insert
   shared_ptr<pit::Entry> pitEntry = m_pit.insert(interest).first;
@@ -168,8 +167,13 @@ Forwarder::onContentStoreHit(const Face& inFace,
   // set PIT straggler timer
   this->setStragglerTimer(pitEntry, true, data.getFreshnessPeriod());
 
-  // goto outgoing Data pipeline
-  this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()));
+  // give the strategy the final say on whether we
+  // send the data or not, and if so then what data we send
+  auto tx_data = make_shared<Data>(data);
+  auto delay = ns3::Seconds( 0 );
+  fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(*pitEntry);
+  if( strategy.filterOutgoingData( inFace, interest, *tx_data, delay ) )
+      this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()), delay );
 }
 
 void
@@ -239,12 +243,21 @@ Forwarder::onOutgoingInterest(shared_ptr<pit::Entry> pitEntry, Face& outFace,
     static boost::random::uniform_int_distribution<uint32_t> dist;
     interest->setNonce(dist(getGlobalRng()));
   }
-
+  
+  auto delay = ns3::Seconds( 0 );
+  fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(*pitEntry);
+  if( !strategy.filterOutgoingInterest( outFace, *interest, delay ) )
+  {
+    onInterestReject( pitEntry );
+    return;
+  }
+  
   // insert OutRecord
   pitEntry->insertOrUpdateOutRecord(outFace.shared_from_this(), *interest);
 
   // send Interest
-  outFace.sendInterest(*interest);
+  m_tx_queue.delay( delay );
+  m_tx_queue.sendInterest( outFace.shared_from_this(), interest );
   ++m_counters.getNOutInterests();
 }
 
@@ -303,6 +316,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
   
   const_cast<Data&>(data).setIncomingFaceId(inFace.getId());
   ++m_counters.getNInDatas();
+  
 
   // /localhost scope control
   bool isViolatingLocalhost = !inFace.isLocal() &&
@@ -313,16 +327,6 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     // (drop)
     return;
   }
-
-  /*
-  * HACK: Added by Ray Stubbs [stubbs.ray@gmail.com]
-  * if Strategy::onIncomingData(...) returns true then the data
-  * has already been dealt with by the strategy, otherwise continue
-  * normally.
-  */
-  fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy( data.getName() );
-  if( strategy.onIncomingData( inFace, data ) )
-    return;
 
 
   // PIT match
@@ -348,7 +352,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
   else
     m_csFromNdnSim->Add(dataCopyWithoutPacket);
 
-  std::set<shared_ptr<Face> > pendingDownstreams;
+  std::list< pit::InRecord > pendingDownstreams;
   // foreach PitEntry
   for (const shared_ptr<pit::Entry>& pitEntry : pitMatches) {
     NFD_LOG_DEBUG("onIncomingData matching=" << pitEntry->getName());
@@ -361,7 +365,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     for (pit::InRecordCollection::const_iterator it = inRecords.begin();
                                                  it != inRecords.end(); ++it) {
       if (it->getExpiry() > time::steady_clock::now()) {
-        pendingDownstreams.insert(it->getFace());
+        pendingDownstreams.push_back( *it );
       }
     }
 
@@ -382,14 +386,18 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
   }
 
   // foreach pending downstream
-  for (std::set<shared_ptr<Face> >::iterator it = pendingDownstreams.begin();
+  for (auto it = pendingDownstreams.begin();
       it != pendingDownstreams.end(); ++it) {
-    shared_ptr<Face> pendingDownstream = *it;
-    if (pendingDownstream.get() == &inFace) {
+    if (it->getFace().get() == &inFace) {
       continue;
     }
-    // goto outgoing Data pipeline
-    this->onOutgoingData(data, *pendingDownstream);
+    // give the strategy the final say on whether we
+    // send the data or not, and if so then what data we send
+    auto tx_data = make_shared<Data>(data);
+    auto delay = ns3::Seconds( 0 );
+    fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(it->getInterest().getName());
+    if( strategy.filterOutgoingData( *it->getFace(), it->getInterest(), *tx_data, delay ) )
+        this->onOutgoingData(data, *it->getFace(), delay );
   }
 }
 
@@ -412,7 +420,7 @@ Forwarder::onDataUnsolicited(Face& inFace, const Data& data)
 }
 
 void
-Forwarder::onOutgoingData(const Data& data, Face& outFace)
+Forwarder::onOutgoingData(const Data& data, Face& outFace, ns3::Time delay )
 {
   if (outFace.getId() == INVALID_FACEID) {
     NFD_LOG_WARN("onOutgoingData face=invalid data=" << data.getName());
@@ -420,6 +428,10 @@ Forwarder::onOutgoingData(const Data& data, Face& outFace)
   }
   NFD_LOG_DEBUG("onOutgoingData face=" << outFace.getId() << " data=" << data.getName());
 
+
+  // update route hash
+  const_cast<Data&>(data).updateRoute( (uint64_t)outFace.getId() << 31 || outFace.getId() );
+  
   // /localhost scope control
   bool isViolatingLocalhost = !outFace.isLocal() &&
                               LOCALHOST_NAME.isPrefixOf(data.getName());
@@ -433,7 +445,8 @@ Forwarder::onOutgoingData(const Data& data, Face& outFace)
   // TODO traffic manager
 
   // send Data
-  outFace.sendData(data);
+  m_tx_queue.delay( delay );
+  m_tx_queue.sendData( outFace.shared_from_this(), data.shared_from_this() );
   ++m_counters.getNOutDatas();
 }
 

@@ -8,8 +8,8 @@ router
 # each line in this section represents one router and should have the following data
 # node  comment     yPos    xPos
 p1      NA          1       0
-p2      NA          4       0
-p3      NA          7       0
+#p2      NA          4       0
+#p3      NA          7       0
 r1      NA          4       3
 r2      NA          4       4
 r3      NA          4       5
@@ -39,8 +39,8 @@ link
 
 # Producers to edge
 p1          e1          512Mbps       1       10ms    10
-p2          e1          512Mbps       1       10ms    10
-p3          e1          512Mbps       1       10ms    10
+#p2          e1          512Mbps       1       10ms    10
+#p3          e1          512Mbps       1       10ms    10
 
 # Routers between edges
 e1          r1          1024Mbps       1       10ms    10

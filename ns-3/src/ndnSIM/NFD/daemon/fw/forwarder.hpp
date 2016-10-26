@@ -22,6 +22,12 @@
  * You should have received a copy of the GNU General Public License along with
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+ /**
+ * This file has been modified from its original form
+ * by Ray Stubbs [stubbs.ray@gmail.com] to accomodate
+ * the needs of a specific simulation.
+ **/
 
 #ifndef NFD_DAEMON_FW_FORWARDER_HPP
 #define NFD_DAEMON_FW_FORWARDER_HPP
@@ -36,6 +42,7 @@
 #include "table/measurements.hpp"
 #include "table/strategy-choice.hpp"
 #include "table/dead-nonce-list.hpp"
+#include "tx-queue.hpp"
 
 #include "ns3/ndnSIM/model/cs/ndn-content-store.hpp"
 
@@ -189,7 +196,7 @@ PUBLIC_WITH_TESTS_ELSE_PRIVATE: // pipelines
   /** \brief outgoing Data pipeline
    */
   VIRTUAL_WITH_TESTS void
-  onOutgoingData(const Data& data, Face& outFace);
+  onOutgoingData(const Data& data, Face& outFace, ns3::Time delay );
 
 PROTECTED_WITH_TESTS_ELSE_PRIVATE:
   VIRTUAL_WITH_TESTS void
@@ -235,6 +242,11 @@ private:
   StrategyChoice m_strategyChoice;
   DeadNonceList  m_deadNonceList;
   shared_ptr<NullFace> m_csFace;
+  
+  // transmit queue, used to force ns3 to simulate
+  // computational overhead in the form of delay for
+  // each responce
+  ndntac::TxQueue m_tx_queue;
 
   ns3::Ptr<ns3::ndn::ContentStore> m_csFromNdnSim;
 

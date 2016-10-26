@@ -5,6 +5,11 @@
 * the ndn-cxx library for use in NMSU's tag based access control
 * mechanism.
 *
+* An AuthTag can be added to an interest to authenticate its
+* access to a content.  The routers can use the tag to check
+* an interests authenticity without defering authentication
+* to the content provider.
+*
 * @author Ray Stubbs [stubbs.ray@gmail.com]
 **/
 #ifndef AUTH_TAG_HPP

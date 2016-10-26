@@ -132,31 +132,21 @@ Entry::findNonce(uint32_t nonce, const Face& face) const
 InRecordCollection::iterator
 Entry::insertOrUpdateInRecord(shared_ptr<Face> face, const Interest& interest)
 {
-  // if interest matches our interest's auth tag then insert in record into
-  // this pit entry
-  if( interest.getPayload().type() == ndn::tlv::ContentType_AuthRequest
-      || interest.getAuthTag() == getInterest().getAuthTag() )
-  {
+    // if in record for this interest already exists then
+    // just update existing record; only need to compare interests
+    // and not face becuase route hash in interest will automatically
+    // take the incoming face into account
     auto it = std::find_if(m_inRecords.begin(), m_inRecords.end(),
-      [&face] (const InRecord& inRecord) { return inRecord.getFace() == face; });
+      [&interest] (const InRecord& inRecord)
+      { return inRecord.getInterest() == interest; });
+    
+    // otherwise create a new InRecord for the interest
     if (it == m_inRecords.end()) {
       m_inRecords.emplace_front(face);
       it = m_inRecords.begin();
     }
     it->update(interest);
     return it;
-  }
-
-  // otherwise look for a matching entry, if none then add entry to end
-  if( m_related_entry == NULL )
-  {
-    m_related_entry = std::make_shared< Entry >( interest );
-    return m_related_entry->insertOrUpdateInRecord( face, interest );
-  }
-  else
-  {
-    return m_related_entry->insertOrUpdateInRecord( face, interest );
-  }
 }
 
 InRecordCollection::const_iterator
@@ -177,11 +167,6 @@ Entry::deleteInRecords()
 OutRecordCollection::iterator
 Entry::insertOrUpdateOutRecord(shared_ptr<Face> face, const Interest& interest)
 {
-
-  // if interest matches our interest's auth tag then insert in record into
-  // this pit entry
-  if( interest.getAuthTag() == getInterest().getAuthTag() )
-  {
     auto it = std::find_if(m_outRecords.begin(), m_outRecords.end(),
       [&face] (const OutRecord& outRecord) { return outRecord.getFace() == face; });
     if (it == m_outRecords.end()) {
@@ -191,19 +176,6 @@ Entry::insertOrUpdateOutRecord(shared_ptr<Face> face, const Interest& interest)
 
     it->update(interest);
     return it;
-  }
-
-  // otherwise look for a matching entry, if none then add entry to end
-  if( m_related_entry == NULL )
-  {
-    m_related_entry =  std::make_shared<Entry>( interest );
-    return m_related_entry->insertOrUpdateOutRecord( face, interest );
-  }
-  else
-  {
-    return m_related_entry->insertOrUpdateOutRecord( face, interest );
-  }
-
 }
 
 OutRecordCollection::const_iterator

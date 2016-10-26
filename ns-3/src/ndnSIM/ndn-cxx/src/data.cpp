@@ -47,6 +47,11 @@ Data::Data(const Block& wire)
   wireDecode(wire);
 }
 
+Data::Data( const Data& data )
+{
+    wireDecode( data.wireEncode() );
+}
+
 template<encoding::Tag TAG>
 size_t
 Data::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion/* = false*/) const
@@ -62,7 +67,7 @@ Data::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion/* = false*
   //              SignatureInfo
   //            SignatureValue
   //            NoReCacheFlag?
-  //            RouteHash
+  //            RouteTracker
 
   // (reverse encoding)
 
@@ -73,10 +78,11 @@ Data::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion/* = false*
 
   if (!only_signed_portion)
     {
-      // RouteHash
-      totalLength += prependNonNegativeIntegerBlock( encoder,
-                                                     tlv::RouteHash,
-                                                     m_route_hash );
+      // RouteTracker
+      if( m_route_tracker )
+      {
+          totalLength += encoder.prependBlock( m_route_tracker->wireEncode() );
+      }
 
       // NoReCacheFlag
       if( m_no_recache_flag )
@@ -141,8 +147,7 @@ Data::wireEncode(EncodingBuffer& encoder, const Block& signatureValue) const
   if( m_no_recache_flag )
     totalLength += encoder.appendBlock( Block( tlv::NoReCacheFlag) );
   totalLength += encoder
-                 .appendBlock( makeNonNegativeIntegerBlock( tlv::RouteHash,
-                                                            m_route_hash ) );
+                 .appendBlock( m_route_tracker->wireEncode() );
 
   encoder.prependVarNumber(totalLength);
   encoder.prependVarNumber(tlv::Data);
@@ -170,6 +175,7 @@ Data::wireEncode() const
 void
 Data::wireDecode(const Block& wire)
 {
+
   m_fullName.clear();
   m_wire = wire;
   m_wire.parse();
@@ -216,8 +222,10 @@ Data::wireDecode(const Block& wire)
   if( val != m_wire.elements_end() )
     m_no_recache_flag = true;
 
-  // RouteHash
-  m_route_hash = readNonNegativeInteger( m_wire.get( tlv::RouteHash ) );
+  // RouteTracker
+  val = m_wire.find( tlv::RouteTracker );
+  if( val != m_wire.elements_end() )
+    setRouteTracker( RouteTracker( *val ) );
 }
 
 Data&
@@ -375,6 +383,13 @@ Data::onChanged()
 
   m_wire.reset();
   m_fullName.clear();
+}
+
+Data&
+Data::operator=( const Data& other )
+{
+    wireDecode( other.wireEncode() );
+    return *this;
 }
 
 bool

@@ -101,13 +101,13 @@ enum {
   */
   SignedPortion = 33,
 
-  /** An extra field in both Data and Interest packets, the route
-  *   hash is a 64bit XOR hash of all FaceIDs ( MAC addresses, etc. )
-  *   that the packet has passed through.  Used for identity verification
-  *   and possibly to avoid poisoned caches.  Edge router should
-  *   represents this to 0 when a packet enters the network.
+  /** RouteTacker  and fields
   */
-  RouteHash = 34,
+  RouteTracker = 34,
+  CurrentNetwork = 35,
+  EntryRoute = 36,
+  InternetRoute = 37,
+  ExitRoute = 38,
 
   /** A validity probability set by the edge router indicating
   *   the probability that a given interest's AuthTag is valid,
@@ -117,28 +117,28 @@ enum {
   *   about the tag, to 2^32 indicating that the edge router is sure
   *   that the tag is valid.
   */
-  AuthValidityProbability = 35,
+  AuthValidityProbability = 39, //35,
 
   /** A flag set in Data indicating that the corresponding Interest's
   *   AuthValidityProbability was greater than 0, indicating that the
   *   edge router already has the interest's tag cached, and so should
   *   not recache the tag when Data is returned.
   */
-  NoReCacheFlag = 36,
+  NoReCacheFlag = 34, //36,
 
   /** An AuthTag is a specialized certificate issued by producers to
   *   grant consumers with access to their data
   */
-  AuthTag = 37,
+  AuthTag = 41, //37,
 
   /** In AuthTags is the level of access granted to the consumer with the tag,
   *   in Data is the level of access required to retrieve the Data
   */
-  AccessLevel = 38,
+  AccessLevel = 42, //38,
 
-  /** Payload for payload interests
+  /** Generic route hash
   */
-  Payload = 39,
+  RouteHash = 43, //39,
 
 // End MODs by Ray Stubbs [stubbs.ray@gmail.com]
 

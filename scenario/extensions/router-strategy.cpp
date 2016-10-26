@@ -60,46 +60,44 @@ namespace ndntac
   RouterStrategy::beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
                                          const nfd::Face& inFace, const ndn::Data& data)
   {
-    // the data belongs to the main interest of the pit entry
-    // since the response is already appropriate for the interest
-    // ( either valid data or an AuthDenied packet ) the data is
-    // automatically forwarded downstream to all appropriate faces
-    // by ndnSIM
+    // get the in records for the entry
+    auto in_records = pitEntry->getInRecords();
     
-    // while the pit entry has related interests that can be satisfied by the
-    // data, handle those as well.  These have not yet been authenticated yet
-    // so that's our job
-    shared_ptr< nfd::pit::Entry > entry_ptr = pitEntry;
-    while( ( entry_ptr = entry_ptr->nextRelatedEntry() ) != NULL  )
+    // we need to authenticate each interest individually
+    // so we remove all current in records and re-insert
+    // the valid ones only
+    pitEntry->deleteInRecords();
+    
+    // the first in record corresponds to the interest
+    // that was forwarded, the the upstream router already validated
+    // the request, so if the data is anything but a Nack or AuthDenial
+    // then we can keep the interest, otherwise we remove it
+    auto it = in_records.begin();
+    if( data.getContentType() == ndn::tlv::ContentType_Nack
+        || data.getContnetType() == ndn::tlv::ContentType_AuthDenial )
     {
-        auto in_records = entry_ptr->getInRecords();
-        for( auto iter = in_records.begin() ; iter != in_records.end() ; iter++ )
+        pitEntry->insertOrUpdateInRecord( it->getFace(), it->getInterest() );
+    }
+    else
+    {
+        // TODO: log upstream failed authentication
+    }
+    
+    it++;
+    
+    // for all other interests we check their authentication
+    for( ; it != in_records.end(); it++ )
+    {
+        if( validateAccess( it->getInterest(), data ) )
         {
-            Coordinator::routerOther( m_instance_id,
-                                      string("DeAgragation of ")
-                                      + entry_ptr->getInterest().getName().toUri() );
-            onDataHit( *iter->getFace(), entry_ptr->getInterest(), data );
+            pitEntry->insertOrUpdateInRecord( it->getFace(), it->getInterest() );
+        }
+        else
+        {
+            // TODO: log failed authentication
         }
     }
-    
-    // logging
-    switch( data.getContentType() )
-    {
-        case ndn::tlv::ContentType_Blob:
-            Coordinator::routerSatisfiedRequest( m_instance_id, data.getName() );
-            break;
-        case ndn::tlv::ContentType_AuthGranted:
-            Coordinator::routerAuthSatisfied( m_instance_id, data.getName() );
-            break;
-        case ndn::tlv::ContentType_EoC:
-            Coordinator::routerOther( m_instance_id, "Found EoC" );
-            break;
-        case ndn::tlv::ContentType_AuthDenial:
-        case ndn::tlv::ContentType_Nack:
-        default:
-            Coordinator::routerDeniedRequest( m_instance_id, data.getName(), "upstream" );
-        
-    }
+
 
   }
 
