@@ -1,7 +1,7 @@
 /**
 * @brief Log filtering utilities
 *
-* Used to limit the logs output by the simulator
+* Used to limit the logs output by the simulation
 * @author Ray Stubbs [stubbs.ray@gmail.com]
 **/
 
@@ -57,7 +57,7 @@ namespace Coordinator
   private:
     std::string m_logger;
     std::string m_logtype;
-    std::map< std::string, std::string > m_attrs;
+    std::list< std::pair< std::string, std::string > > m_attrs;
   };
 
   /**

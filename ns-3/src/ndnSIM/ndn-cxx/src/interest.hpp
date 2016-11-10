@@ -61,16 +61,6 @@ public:
     {
     }
   };
-  
-  /**
-  * @brief Network types, @see m_current_network
-  **/
-  enum NetworkType
-  {
-    ENTRY_NETWORK = 0,
-    INTERNET_NETWORK = 1,
-    EXIT_NETWORK = 2
-  };
 
   /** @brief Create a new Interest with an empty name (`ndn:/`)
    *  @warning In certain contexts that use Interest::shared_from_this(), Interest must be created
@@ -259,32 +249,45 @@ public: // Name and guiders
   uint64_t
   getEntryRoute() const
   {
-    return getRouteTracker().getEntryRoute();
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
+    return m_route_tracker->getEntryRoute();
   }
 
   uint64_t
   getInternetRoute() const
   {
-    return getRouteTracker().getInternetRoute();
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
+    return m_route_tracker->getInternetRoute();
   }
 
   uint64_t
   getExitRoute() const
   {
-    return getRouteTracker().getExitRoute();
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
+    return m_route_tracker->getExitRoute();
   }
   
-  NetworkType
+  RouteTracker::NetworkType
   getCurrentNetwork() const
   {
-    return m_current_network;
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get network of data without route tracker" ) 
+    );
+    return m_route_tracker->getCurrentNetwork();
   }
 
   Interest&
   updateRoute( uint64_t link_id )
   {
-    if( !m_route_tracker )
-        setRouteTracker( RouteTracker() );
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to update route of interest without route tracker" ) 
+    );
     m_route_tracker->update( link_id );
     m_wire.reset();
     return *this;
@@ -293,7 +296,11 @@ public: // Name and guiders
   Interest&
   setCurrentNetwork( RouteTracker::NetworkType type )
   {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to set network of data without route tracker" ) 
+    );
     m_route_tracker->setCurrentNetwork( type );
+    m_wire.reset();
     return *this;
   }
 
@@ -527,38 +534,6 @@ private:
   unique_ptr<RouteTracker> m_route_tracker;
   Signature m_signature;
   uint32_t m_auth_validity_prob = 0;
-  
-  ///@{
-  /**
-  * @brief Route hashes, all routers in the network will XOR one of these
-  *        hashes with the ID of the incoming link, which hash is updated
-  *        depends on router location
-  *
-  * Routers local to the client network will update the m_entry_route.
-  * All routers in between the client local network and the provider local network
-  * will update the m_internet_route hash.
-  * Routers in the producer local network will update the m_exit_route
-  * 
-  * Keeping these routes separate allows for finer grained control route tracking,
-  * we can get the full route hash by XORing all hashes together.
-  **/
-  uint64_t m_internet_route = 0;
-  uint64_t m_entry_route = 0;
-  uint64_t m_exit_route = 0;
-  ///@}
-  
-  /**
-  * @brief Keeps track of the current location of the interest
-  *
-  * This is used by the routers to know which route hash to update
-  *
-  * It'll either be set to
-  * 0 = Client Local Network = ENTRY_NETWORK,
-  * 1 = Intermediate Network = INTERNET_NETWORK,
-  * 2 = Provider Local Network = EXIT_NETWORK
-  **/
-  NetworkType m_current_network;
-  
 
   mutable Block m_wire;
 

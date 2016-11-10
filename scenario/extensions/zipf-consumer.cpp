@@ -33,6 +33,8 @@
 #include "ns3/integer.h"
 #include "ns3/double.h"
 
+#include "coordinator.hpp"
+
 #include "utils/ndn-ns3-packet-tag.hpp"
 #include "model/ndn-app-face.hpp"
 #include "utils/ndn-rtt-mean-deviation.hpp"
@@ -50,6 +52,9 @@ using namespace ns3;
 using namespace ns3::ndn;
 
 NS_OBJECT_ENSURE_REGISTERED(ZipfConsumer);
+
+uint32_t
+ZipfConsumer::s_instance_id = 0;
 
 TypeId
 ZipfConsumer::GetTypeId(void)
@@ -99,6 +104,7 @@ ZipfConsumer::ZipfConsumer()
   , m_s(0.7)
 {
   m_rtt = CreateObject<RttMeanDeviation>();
+  m_instance_id = s_instance_id++;
 }
 
 void
@@ -300,12 +306,16 @@ ZipfConsumer::SendPacket()
   interest->setName(*nameWithSequence);
   time::milliseconds interestLifeTime(m_interestLifeTime.GetMilliSeconds());
   interest->setInterestLifetime(interestLifeTime);
+  interest->setRouteTracker( ::ndn::RouteTracker() );
+  BOOST_ASSERT( interest->getCurrentNetwork() == ::ndn::RouteTracker::ENTRY_NETWORK );
 
   WillSendOutInterest(seq);
   WillSendOutInterest( interest );
 
   m_transmittedInterests(interest, this, m_face);
   m_face->onReceiveInterest(*interest);
+  
+  logSentRequest( *interest );
 
   ScheduleNextPacket();
   
@@ -346,6 +356,8 @@ ZipfConsumer::OnData(shared_ptr<const Data> data)
     return;
 
   App::OnData(data); // tracing inside
+  
+  logReceivedData( *data );
 
   // This could be a problem......
   uint32_t seq = data->getName().at(-1).toSequenceNumber();
@@ -392,6 +404,8 @@ ZipfConsumer::OnTimeout(uint32_t sequenceNumber)
   // std::cout << Simulator::Now () << ", TO: " << sequenceNumber << ", current RTO: " <<
   // m_rtt->RetransmitTimeout ().ToDouble (Time::S) << "s\n";
 
+  logTimeout( m_interestName, sequenceNumber );
+  
   m_rtt->IncreaseMultiplier(); // Double the next RTO
   m_rtt->SentSeq(SequenceNumber32(sequenceNumber),
                  1); // make sure to disable RTT calculation for this sample
@@ -413,5 +427,36 @@ ZipfConsumer::WillSendOutInterest(uint32_t sequenceNumber)
 
   m_rtt->SentSeq(SequenceNumber32(sequenceNumber), 1);
 }
+
+void
+ZipfConsumer::logReceivedData( const Data& data ) const
+{
+    Coordinator::LogEntry entry( "Consumer", "ReceivedData");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "seq", data.getName().get(-1).toUri() );
+    Coordinator::log( entry );
+}
+
+void
+ZipfConsumer::logSentRequest( const Interest& interest ) const
+{
+    Coordinator::LogEntry entry( "Consumer", "SentRequest");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "interest-name", interest.getName().toUri() );
+    entry.add( "seq", interest.getName().get(-1).toUri() );
+    Coordinator::log( entry );
+}
+
+void
+ZipfConsumer::logTimeout( const Name& req_name,
+                          uint32_t req_seq ) const
+    {
+        Coordinator::LogEntry entry( "Consumer", "Timeout");
+        entry.add( "id", std::to_string( m_instance_id ) );
+        entry.add( "interest-name", req_name.toUri() );
+        entry.add( "seq", std::to_string( req_seq ) );
+        Coordinator::log( entry );
+    }
 
 } // namespace ndntac

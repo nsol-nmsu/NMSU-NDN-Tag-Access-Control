@@ -44,18 +44,19 @@ p1          e1          512Mbps       1       10ms    10
 
 # Routers between edges
 e1          r1          1024Mbps       1       10ms    10
-r1          r2          1024Mbps       1       10ms    10
-r2          r3          1024Mbps       1       10ms    10
-r3          r4          1024Mbps       1       10ms    10
-r4          r5          1024Mbps       1       10ms    10
-r5          r6          1024Mbps       1       10ms    10
-r6          e2          1024Mbps       1       10ms    10
+#r1          r2          1024Mbps       1       10ms    10
+#r2          r3          1024Mbps       1       10ms    10
+#r3          r4          1024Mbps       1       10ms    10
+#r4          r5          1024Mbps       1       10ms    10
+#r5          r6          1024Mbps       1       10ms    10
+#r6          e2          1024Mbps       1       10ms    10
+r1          e2          1024Mbps       1       10ms    10
 
 # Consumers to edge
 c1          e2          1Mbps       1       10ms    10
-c2          e2          1Mbps       1       10ms    10
-c3          e2          1Mbps       1       10ms    10
-c4          e2          1Mbps       1       10ms    10
-c5          e2          1Mbps       1       10ms    10
-c6          e2          1Mbps       1       10ms    10
-c7          e2          1Mbps       1       10ms    10
+#c2          e2          1Mbps       1       10ms    10
+#c3          e2          1Mbps       1       10ms    10
+#c4          e2          1Mbps       1       10ms    10
+#c5          e2          1Mbps       1       10ms    10
+#c6          e2          1Mbps       1       10ms    10
+#c7          e2          1Mbps       1       10ms    10

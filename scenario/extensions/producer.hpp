@@ -15,13 +15,14 @@
 **/
 #include "ns3/core-module.h"
 #include "ns3/ndnSIM/apps/ndn-app.hpp"
+#include "ns3/ndnSIM/NFD/daemon/fw/tx-queue.hpp"
 #include "ndn-cxx/name.hpp"
 #include "ndn-cxx/interest.hpp"
 #include "ndn-cxx/data.hpp"
 #include "ndn-cxx/auth-tag.hpp"
 #include "ndn-cxx/encoding/tlv.hpp"
-#include "tx-queue.hpp"
 #include "auth-cache.hpp"
+#include <memory>
 
 
 #ifndef PRODUCER__INCLUDED
@@ -38,27 +39,51 @@ namespace ndntac
       Producer();
 
       void
-      OnInterest( shared_ptr< const ndn::Interest> interest ) override;
+      OnInterest( std::shared_ptr< const ndn::Interest> interest ) override;
 
     protected:
       void
       StartApplication() override;
       void
       StopApplication() override;
+      
+      void
+      logDataDenied( const ndn::Data& data,
+                     const ndn::AuthTag& auth,
+                     const std::string& why ) const;
+      void
+      logDataDenied( const ndn::Data& data,
+                     const std::string& why ) const;
+      void
+      logDataSent( const ndn::Data& data,
+                   const ndn::AuthTag& auth ) const;
+      void
+      logDataSent( const ndn::Data& data ) const;
+      void
+      logNoReCacheFlagSet( const ndn::Data& data,
+                           const ndn::Interest& interest ) const;
+
+      void
+      logSentAuth( const ndn::AuthTag& auth ) const;
+      
+      void
+      logReceivedRequest( const ndn::Interest& interest ) const;
+      
+      void
+      logProducerStart( void ) const;
 
     private:
 
      void
-     onDataRequest( shared_ptr< const ndn::Interest > interest );
+     onDataRequest( std::shared_ptr< const ndn::Interest > interest );
      
      void
-     onAuthRequest( shared_ptr< const ndn::Interest > interest );
+     onAuthRequest( std::shared_ptr< const ndn::Interest > interest );
      
-     shared_ptr< ndn::Data >
-     makeAuthDenial( const ndn::Data& data );
+     void
+     toNack( ndn::Data& data );
 
     private:
-            AuthCache m_auth_cache;
             TxQueue m_queue;
             string m_names_string;
             std::map<ndn::Name, std::pair< size_t, uint8_t >> m_names;

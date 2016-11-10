@@ -37,6 +37,7 @@ namespace ndn
     void RouteTracker::setCurrentNetwork( RouteTracker::NetworkType type )
     {
         m_current_network = type;
+        m_wire.reset();
     }
     
     RouteTracker::NetworkType RouteTracker::getCurrentNetwork() const
@@ -94,7 +95,7 @@ namespace ndn
 
          // Type and Size for AuthTag
          length += encoder.prependVarNumber( length );
-         length += encoder.prependVarNumber( tlv::AuthTag );
+         length += encoder.prependVarNumber( tlv::RouteTracker );
          return length;
 
     };

@@ -54,6 +54,7 @@ Forwarder::Forwarder()
   , m_measurements(m_nameTree)
   , m_strategyChoice(m_nameTree, fw::makeDefaultStrategy(*this))
   , m_csFace(make_shared<NullFace>(FaceUri("contentstore://")))
+  , m_route_id( ( (uint64_t)rand() << 32 ) | rand() )
 {
   fw::installStrategies(*this);
   getFaceTable().addReserved(m_csFace, FACEID_CONTENT_STORE);
@@ -75,7 +76,8 @@ Forwarder::onIncomingInterest(Face& inFace, const Interest& interest)
   ++m_counters.getNInInterests();
   
   // update route hash
-  const_cast<Interest&>(interest).updateRoute( (uint64_t)inFace.getId() << 31 || inFace.getId() );
+  if( interest.hasRouteTracker() )
+    const_cast<Interest&>(interest).updateRoute( m_route_id );
 
   // /localhost scope control
   bool isViolatingLocalhost = !inFace.isLocal() &&
@@ -173,7 +175,7 @@ Forwarder::onContentStoreHit(const Face& inFace,
   auto delay = ns3::Seconds( 0 );
   fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(*pitEntry);
   if( strategy.filterOutgoingData( inFace, interest, *tx_data, delay ) )
-      this->onOutgoingData(data, *const_pointer_cast<Face>(inFace.shared_from_this()), delay );
+      this->onOutgoingData(*tx_data, *const_pointer_cast<Face>(inFace.shared_from_this()), delay );
 }
 
 void
@@ -397,7 +399,7 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     auto delay = ns3::Seconds( 0 );
     fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(it->getInterest().getName());
     if( strategy.filterOutgoingData( *it->getFace(), it->getInterest(), *tx_data, delay ) )
-        this->onOutgoingData(data, *it->getFace(), delay );
+        this->onOutgoingData(*tx_data, *it->getFace(), delay );
   }
 }
 
@@ -430,7 +432,8 @@ Forwarder::onOutgoingData(const Data& data, Face& outFace, ns3::Time delay )
 
 
   // update route hash
-  const_cast<Data&>(data).updateRoute( (uint64_t)outFace.getId() << 31 || outFace.getId() );
+  if( data.hasRouteTracker() )
+    const_cast<Data&>(data).updateRoute( m_route_id );
   
   // /localhost scope control
   bool isViolatingLocalhost = !outFace.isLocal() &&

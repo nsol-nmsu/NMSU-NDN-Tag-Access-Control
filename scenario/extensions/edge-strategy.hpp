@@ -17,7 +17,6 @@
 #include "ndn-cxx/encoding/tlv.hpp"
 #include "ns3/ndnSIM/NFD/daemon/fw/best-route-strategy.hpp"
 #include "ns3/ndnSIM/NFD/daemon/face/face.hpp"
-#include "tx-queue.hpp"
 #include "auth-cache.hpp"
 #include "router-strategy.hpp"
 
@@ -34,23 +33,38 @@ namespace ndntac
       EdgeStrategy( nfd::Forwarder& forwarder,
                       const ndn::Name& name = STRATEGY_NAME );
 
+      bool
+      filterOutgoingData( const nfd::Face& face,
+                          const ndn::Interest& interest,
+                          ndn::Data& data,
+                          ns3::Time& delay ) override;
+      
+      bool
+      filterOutgoingInterest( const nfd::Face&,
+                              ndn::Interest& interest,
+                              ns3::Time& delay ) override;
+    protected:
+    
       void
-      beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
-                             const nfd::Face& inFace,
-                             const ndn::Data& data) override;
+      onDataDenied( const ndn::Data& data,
+                    const ndn::Interest& interest ) override;
+      void
+      onDataSatisfied( const ndn::Data& data,
+                       const ndn::Interest& interest ) override;
+      
+      void
+      toNack( ndn::Data& data, const ndn::Interest& interest ) override;
+      
+      
 
     public:
        static const ndn::Name STRATEGY_NAME;
     private:
-            AuthCache  m_positive_cache;
-            AuthCache  m_negative_cache;
-            
-            uint32_t m_instance_id;
-            static uint32_t s_instance_id;
+            AuthCache   m_positive_cache;
+            AuthCache   m_negative_cache;
 
             static const ns3::Time s_edge_signature_delay;
             static const ns3::Time s_edge_bloom_delay;
-            static const ns3::Time s_edge_interest_delay;
     };
 
 };

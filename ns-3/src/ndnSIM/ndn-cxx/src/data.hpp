@@ -330,6 +330,12 @@ public:
   getCurrentNetwork() const;
   
   /**
+  * @brief Set the current network
+  **/
+  void
+  setCurrentNetwork( RouteTracker::NetworkType type );
+  
+  /**
   * @brief has route tracker
   **/
   bool
@@ -484,15 +490,29 @@ Data::setNoReCacheFlag( bool flag )
 inline const RouteTracker&
 Data::getRouteTracker() const
 {
-if ( !m_route_tracker )
-  BOOST_THROW_EXCEPTION(Error("Requested RouteTracker does not exist"));
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Requested route tracker does not exist" ) 
+    );
 return *m_route_tracker;
 }
 
 inline RouteTracker::NetworkType
 Data::getCurrentNetwork() const
 {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get network of data without route tracker" ) 
+    );
     return m_route_tracker->getCurrentNetwork();
+}
+
+inline void
+Data::setCurrentNetwork( RouteTracker::NetworkType type )
+{
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to set network of data without route tracker" ) 
+    );
+    m_route_tracker->setCurrentNetwork( type );
+    m_wire.reset();
 }
 
 inline bool
@@ -504,18 +524,27 @@ Data::hasRouteTracker() const
 inline uint64_t
 Data::getEntryRoute() const
 {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
     return m_route_tracker->getEntryRoute();
 }
 
 inline uint64_t
 Data::getInternetRoute() const
 {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
     return m_route_tracker->getInternetRoute();
 }
 
 inline uint64_t
 Data::getExitRoute() const
 {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to get route of data without route tracker" ) 
+    );
     return m_route_tracker->getExitRoute();
 }
 
@@ -530,6 +559,9 @@ Data::setRouteTracker( const RouteTracker& tracker )
 inline void
 Data::updateRoute( uint32_t link_id )
 {
+    if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
+       Error( "Attempt to update route of data without route tracker" ) 
+    );
     m_route_tracker->update( link_id );
     m_wire.reset();
 }

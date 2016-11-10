@@ -15,7 +15,6 @@
 #include "ndn-cxx/encoding/tlv.hpp"
 #include "ns3/ndnSIM/NFD/daemon/fw/best-route-strategy.hpp"
 #include "ns3/ndnSIM/NFD/daemon/face/face.hpp"
-#include "tx-queue.hpp"
 #include "auth-cache.hpp"
 
 
@@ -32,30 +31,61 @@ namespace ndntac
                       const ndn::Name& name = STRATEGY_NAME );
 
       bool
-      onIncomingInterest( nfd::Face& face,
-                          const ndn::Interest& interest ) override;
+      filterOutgoingData( const nfd::Face& face,
+                          const ndn::Interest& interest,
+                          ndn::Data& data,
+                          ns3::Time& delay ) override;
+      
+      bool
+      filterOutgoingInterest( const nfd::Face&,
+                              ndn::Interest& interest,
+                              ns3::Time& delay ) override;
+    protected:
+      virtual void
+      onDataDenied( const ndn::Data& data,
+                    const ndn::Interest& interest );
+      virtual void
+      onDataSatisfied( const ndn::Data& data,
+                       const ndn::Interest& interest );
+      
+      virtual void
+      onDataPreserved( const ndn::Data& data,
+                       const ndn::Interest& interest );
+      
+      virtual void
+      onInterestDropped( const ndn::Interest& interest,
+                         const nfd::Face& );
+      
+      virtual void
+      toNack( ndn::Data& data, const ndn::Interest& interest );
+      
+      virtual void
+      toSatisfy( ndn::Data& data, const ndn::Interest& interest );
+      
+      virtual void
+      toPreserve( ndn::Data& data, const ndn::Interest& interest );
 
       void
-      beforeSatisfyInterest( shared_ptr<nfd::pit::Entry> pitEntry,
-                             const nfd::Face& inFace, const ndn::Data& data)
-                             override;
-    private:
-
-       shared_ptr< ndn::Data >
-       makeAuthDenial( const ndn::Data& data );
-
-    protected:
-
-       virtual void
-       onDataHit( nfd::Face& face,
-                  const ndn::Interest& interest,
-                       const ndn::Data& data);
-       virtual void
-       onDataMiss( nfd::Face& face,
-                   const ndn::Interest& interest );
-       bool
-       validateAccess( const ndn::Interest& interest,
-                       const ndn::Data& data );
+      logDataDenied( const ndn::Data& data,
+                     const ndn::AuthTag& auth,
+                     const std::string& why ) const;
+      void
+      logDataDenied( const ndn::Data& data,
+                     const std::string& why ) const;
+      void
+      logDataSent( const ndn::Data& data,
+                   const ndn::AuthTag& auth ) const;
+      void
+      logDataSent( const ndn::Data& data ) const;
+      void
+      logNoReCacheFlagSet( const ndn::Data& data,
+                           const ndn::Interest& interest ) const;
+      
+      void
+      logInterestSent( const ndn::Interest& interest ) const;
+    
+      void
+      logReceivedRequest( const ndn::Interest& interest ) const;
        
 
     public:
@@ -66,7 +96,6 @@ namespace ndntac
             nfd::Forwarder& m_forwarder;
 
     protected:
-            static uint32_t s_instance_id_offset;
             uint32_t m_instance_id;
     private:
             static const ns3::Time s_router_signature_delay;

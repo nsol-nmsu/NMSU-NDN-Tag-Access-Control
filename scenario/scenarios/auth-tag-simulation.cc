@@ -11,11 +11,9 @@
 #include "ns3/names.h"
 #include "ns3/ndnSIM/apps/ndn-consumer-cbr.hpp"
 
-#include "tx-queue.hpp"
 #include "producer.hpp"
 #include "router-strategy.hpp"
 #include "edge-strategy.hpp"
-#include "local-strategy.hpp"
 #include "log-filter.hpp"
 #include "coordinator.hpp"
 #include "consumer-wrapper.hpp"
@@ -67,7 +65,6 @@ namespace ns3
             NodeContainer consumer_nodes;
             NodeContainer router_nodes;
             NodeContainer edge_nodes;
-            NodeContainer local_nodes;
             
             // seperate node types
             for( auto n = all_nodes.begin() ; n != all_nodes.end() ; n++ )
@@ -86,8 +83,6 @@ namespace ns3
                             case 'e':
                                     edge_nodes.Add( *n );
                                     break;
-                            case 'l':
-                                    local_nodes.Add( *n );
                             default:
                                     break;
                     }            
@@ -134,22 +129,18 @@ namespace ns3
             consumer_app.SetAttribute( "Window", StringValue("10") );
             consumer_app.Install( consumer_nodes );
             
-            // install normal router strategy on internet routers
+            // install normal router strategy on all nodes except edge routers
             ndn::StrategyChoiceHelper::Install<ndntac::RouterStrategy>(router_nodes, "/");
+            ndn::StrategyChoiceHelper::Install<ndntac::RouterStrategy>( consumer_nodes, "/" );
+            ndn::StrategyChoiceHelper::Install<ndntac::RouterStrategy>( producer_nodes, "/" );
             
             // and edge router strategy on all edge nodes
             ndn::StrategyChoiceHelper::Install<ndntac::EdgeStrategy>(edge_nodes, "/");
             
-            // producers, consumers, and local routers all get local router strategies
-            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( consumer_nodes, "/" );
-            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( producer_nodes, "/" );
-            ndn::StrategyChoiceHelper::Install<ndntac::LocalStrategy>( local_nodes, "/" );
-            
             ndn::GlobalRoutingHelper::CalculateRoutes();
             
             
-            Coordinator::simulationStarted( Coordinator::LogFilter(),
-                                            "scenarios/auth-tag-simulation/logs/SIMUATION.log" );
+            Coordinator::simulationStarted( "scenarios/auth-tag-simulation/logs/SIMUATION.log" );
             Simulator::Stop( Seconds( 10 ) );
             Simulator::Run();
             Simulator::Destroy();

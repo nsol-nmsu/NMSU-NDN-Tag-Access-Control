@@ -242,6 +242,9 @@ private:
   StrategyChoice m_strategyChoice;
   DeadNonceList  m_deadNonceList;
   shared_ptr<NullFace> m_csFace;
+
+  // id for route hashing
+  uint64_t m_route_id;
   
   // transmit queue, used to force ns3 to simulate
   // computational overhead in the form of delay for

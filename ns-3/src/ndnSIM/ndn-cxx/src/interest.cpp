@@ -401,7 +401,7 @@ Interest::wireDecode(const Block& wire)
   // AuthTag
   val = sportion.find( tlv::AuthTag );
   if( val != sportion.elements_end() )
-    setAuthTag( AuthTag( *val ) );
+    m_auth_tag.reset( new AuthTag( *val ) );
 
   // SignatureInfo
   m_signature.setInfo( sportion.get( tlv::SignatureInfo ) );
@@ -423,7 +423,7 @@ Interest::wireDecode(const Block& wire)
   // RouteTracker
   val = m_wire.find( tlv::RouteTracker );
   if( val != m_wire.elements_end() )
-    setRouteTracker( RouteTracker( *val ) );
+    m_route_tracker.reset( new RouteTracker( *val ) );
 
 }
 

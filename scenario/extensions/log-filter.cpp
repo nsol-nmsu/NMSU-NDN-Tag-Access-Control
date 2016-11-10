@@ -17,7 +17,7 @@ namespace Coordinator
 
     void LogEntry::add( const string& key, const string& value )
     {
-      m_attrs[key] = value;
+      m_attrs.push_back( std::make_pair( key, value ) );
     }
 
    string LogEntry::toString() const
@@ -28,10 +28,7 @@ namespace Coordinator
 
       for( auto it = m_attrs.begin() ; it != m_attrs.end() ; it++ )
       {
-        s.width( 15 );
-        s << std::left << it->first << " = ";
-        s.width( 70 );
-        s << std::left << it->second << endl;
+        s <<  it->first << " = " << it->second << endl;
       }
 
       s << "}" << endl;

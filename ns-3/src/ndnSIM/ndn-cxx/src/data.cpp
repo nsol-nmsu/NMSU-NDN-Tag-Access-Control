@@ -88,7 +88,7 @@ Data::wireEncode(EncodingImpl<TAG>& encoder, bool only_signed_portion/* = false*
       if( m_no_recache_flag )
       {
         totalLength += encoder.prependVarNumber( 0 );
-        totalLength += encoder.prependVarNumber( tlv::NoReCacheFlag );
+        totalLength += encoder.prependBlock(  Block( tlv::NoReCacheFlag ) );
       }
 
       // SignatureValue
@@ -199,7 +199,10 @@ Data::wireDecode(const Block& wire)
   m_name.wireDecode( sportion.get(tlv::Name));
 
  // AccessLevel
-  m_access_level = readNonNegativeInteger( sportion.get( tlv::AccessLevel ) );
+ auto val = m_wire.find( tlv::AccessLevel );
+ if( val != m_wire.elements_end() )
+    m_access_level =
+        readNonNegativeInteger( sportion.get( tlv::AccessLevel ) );
 
   // MetaInfo
   m_metaInfo.wireDecode( sportion.get(tlv::MetaInfo));
@@ -213,7 +216,7 @@ Data::wireDecode(const Block& wire)
 //----------------- End SignedPortion ---------------------//
 
   // SignatureValue
-  Block::element_const_iterator val = m_wire.find(tlv::SignatureValue);
+  val = m_wire.find(tlv::SignatureValue);
   if (val != m_wire.elements_end())
     m_signature.setValue(*val);
 
@@ -225,7 +228,7 @@ Data::wireDecode(const Block& wire)
   // RouteTracker
   val = m_wire.find( tlv::RouteTracker );
   if( val != m_wire.elements_end() )
-    setRouteTracker( RouteTracker( *val ) );
+    m_route_tracker.reset( new RouteTracker( *val ) );
 }
 
 Data&

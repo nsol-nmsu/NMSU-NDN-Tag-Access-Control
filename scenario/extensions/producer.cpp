@@ -45,11 +45,9 @@ namespace ndntac
           return tid;
   }
 
-  Producer::Producer():
-    m_auth_cache( 1e-10, 10000 )
+  Producer::Producer()
   {
     m_instance_id = s_instance_id++;
-    Coordinator::addProducer( m_instance_id );
   }
   
    void
@@ -71,22 +69,23 @@ namespace ndntac
         segment = interest->getName().get(-1).toSequenceNumber();
     
       // read data
-      static uint8_t dummy_segment[s_segment_size] = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+      static uint8_t dummy_segment[s_segment_size] =
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+         "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
       size_t content_size = name_entry->second.first;
       size_t seg_size;
       if( segment*s_segment_size >= content_size )
@@ -99,84 +98,90 @@ namespace ndntac
       // make data
       uint8_t access_level = name_entry->second.second;
       shared_ptr<ndn::Data> data = make_shared<ndn::Data>( interest->getName() );
-      data->setContentType( seg_size == 0 ? ndn::tlv::ContentType_EoC : ndn::tlv::ContentType_Blob );
+      data->setContentType( seg_size == 0
+                            ? ndn::tlv::ContentType_EoC
+                            : ndn::tlv::ContentType_Blob );
       data->setContent( dummy_segment, seg_size );
       data->setAccessLevel( access_level );
       data->setFreshnessPeriod( ndn::time::days( 1 ) );
       ndn::Signature sig = ndn::security::DUMMY_NDN_SIGNATURE;
+      data->setRouteTracker( interest->getRouteTracker() );
       sig.setKeyLocator( ndn::KeyLocator( m_prefix ) );
       data->setSignature( sig  );
       data->wireEncode();
+      BOOST_ASSERT( data->getCurrentNetwork() == ndn::RouteTracker::EXIT_NETWORK );
 
       ///////// check that the interest's authentication ( AuthTag ) is valid //////
+      
+      // if data access level is 0 then forward without authentication
+      if( data->getAccessLevel() == 0 )
+      {
+        logDataSent( *data );
+        m_queue.receiveData( m_face, data );
+      }
+      
+      // interests without tags are refused
+      if( !interest->hasAuthTag() )
+      {
+        logDataDenied( *data, "no auth tag" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
+        return;
+      }
+      
+      
       const ndn::AuthTag& tag = interest->getAuthTag();
 
       // tags with invalid access level are refused
       if( access_level > tag.getAccessLevel() )
       {
-        Coordinator::producerDeniedRequest( m_prefix,
-                                            interest->getName(),
-                                            "AuthTag access level is too low" );
-        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+        logDataDenied( *data, tag, "insufficient access rights" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
         return;
       }
 
       //interests with expired tags are refused
       if( tag.isExpired() )
       {
-        Coordinator::producerDeniedRequest( m_prefix,
-                                            interest->getName(),
-                                            "AuthTag is expired" );
-        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+        logDataDenied( *data, tag, "auth tag is expired" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
         return;
       }
 
       // tags with wrong prefixes are refused
       if( !tag.getPrefix().isPrefixOf( data->getName() ) )
       {
-        Coordinator::producerDeniedRequest( m_prefix,
-                                            interest->getName(),
-                                            "AuthTag prefix does not "
-                                            "match data prefix" );
-        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+        logDataDenied( *data, tag, "tag prefix does not match data" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
         return;
       }
 
       // tags with non matching key locators are refused
       if( !data->getSignature().hasKeyLocator() )
       {
-        Coordinator::producerDeniedRequest( m_prefix,
-                                          interest->getName(),
-                                          "Requested data has no key locator" );
-        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+        logDataDenied( *data, tag, "data doesn't have key locator" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
         return;
       }
       if( tag.getKeyLocator() != data->getSignature().getKeyLocator() )
       {
-        Coordinator::producerDeniedRequest( m_prefix,
-                                            interest->getName(),
-                                            "AuthTag key locator does not "
-                                            "match data key locator" );
-        m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+        logDataDenied( *data, tag, "tag's key locator doesn't match data's" );
+        toNack( *data );
+        m_queue.receiveData( m_face, data );
         return;
       }
 
       // set NoReCache flag if necessary
       if( interest->getAuthValidityProb() > 0 )
+	  {
+	    logNoReCacheFlagSet( *data, *interest );
         data->setNoReCacheFlag( true );
-
-      // check if auth is cached ( delay adds lookup time to simulation )
-      if( interest->getAuthValidityProb() == 0 )
-      {
-          m_queue.delay( s_producer_bloom_delay );
-          if( m_auth_cache.contains( tag ) )
-          {
-            Coordinator::producerSatisfiedRequest( m_prefix,
-                                                   interest->getName() );
-            m_queue.receiveData( m_face, data );
-            return;
-          }
       }
+
 
       // verify signature, we simulate actual verification delay by
       // adding delay to the transmit queue, signature is valid if it
@@ -186,15 +191,15 @@ namespace ndntac
       if( tag.getSignature().getValue().value_size() > 0
           && tag.getSignature().getValue().value()[0] != 0 )
       {
-        Coordinator::producerSatisfiedRequest( m_prefix,
-                                               interest->getName() );
+        logDataSent( *data, tag );
         m_queue.receiveData( m_face, data );
-        m_auth_cache.insert( tag );
         return;
       }
 
       // signature was invalid
-      m_queue.receiveData( m_face, makeAuthDenial( *data ) );
+      logDataDenied( *data, tag, "bad signature" );
+      toNack( *data );
+      m_queue.receiveData( m_face, data );
    }
  
    void
@@ -202,7 +207,7 @@ namespace ndntac
    {
       // since this is a simulation we don't do real identity
       // authentication, we just give an AuthTag to whomever asks for one
-      uint64_t route_hash = interest->getName().get(-1).toNumber();
+      uint64_t route_hash = interest->getEntryRoute();
 
       ndn::AuthTag tag;
       tag.setPrefix( m_prefix );
@@ -220,23 +225,26 @@ namespace ndntac
       tag.setSignature( sig );
 
       auto data = make_shared< ndn::Data >( interest->getName() );
-      data->setContentType( ndn::tlv::ContentType_AuthGranted );
+      data->setContentType( ndn::tlv::ContentType_Auth );
       data->setContent( tag.wireEncode() );
       data->setAccessLevel( 0 );
       data->setFreshnessPeriod( ndn::time::seconds( 0 ) );
+      data->setRouteTracker( interest->getRouteTracker() );
       data->setSignature( sig  );
       data->wireEncode();
+      BOOST_ASSERT( data->getCurrentNetwork() == ndn::RouteTracker::EXIT_NETWORK );
       
+      logSentAuth( tag );
       m_queue.receiveData( m_face, data );
-      Coordinator::producerSatisfiedAuthRequest( m_prefix, data->getName() );
    }
 
   void
   Producer::OnInterest( shared_ptr< const ndn::Interest > interest )
   {
       App::OnInterest( interest );
+      BOOST_ASSERT( interest->getCurrentNetwork() == ndn::RouteTracker::EXIT_NETWORK );
       
-      Coordinator::producerReceivedRequest( m_prefix, interest->getName() );
+      logReceivedRequest( *interest );
 
       // every interest takes some amount of processing time
       // for now we simulate this with a constant delay
@@ -255,7 +263,8 @@ namespace ndntac
   Producer::StartApplication()
   {
     App::StartApplication();
-    Coordinator::producerStarted( m_prefix );
+    
+    logProducerStart();
     
     // register route
     ns3::ndn::FibHelper::AddRoute( GetNode(), m_prefix, m_face, 0 );
@@ -299,18 +308,107 @@ namespace ndntac
   Producer::StopApplication()
   {
     App::StopApplication();
-    Coordinator::producerStopped( m_prefix );
   }
 
-  shared_ptr< ndn::Data >
-  Producer::makeAuthDenial( const ndn::Data& data )
+  void
+  Producer::toNack( ndn::Data& data )
   {
-    auto denial = make_shared< ndn::Data >( data.getName() );
-    denial->setContentType( ndn::tlv::ContentType_AuthDenial );
-    denial->setContent( data.wireEncode() );
-    denial->setFreshnessPeriod( ndn::time::milliseconds(0));
-    denial->setSignature( ndn::security::DUMMY_NDN_SIGNATURE );
-    denial->wireEncode();
-    return denial;
+    data.setContentType( ndn::tlv::ContentType_Nack );
+    data.wireEncode();
+  }
+  
+  void
+  Producer::logDataDenied( const ndn::Data& data,
+                           const ndn::AuthTag& auth,
+                           const std::string& why ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "DataDenied");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
+    entry.add( "auth-prefix", auth.getPrefix().toUri() );
+    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
+    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
+    entry.add( "why", why );
+    Coordinator::log( entry );
+  }
+  void
+  Producer::logDataDenied( const ndn::Data& data,
+                           const std::string& why ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "DataDenied");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
+    entry.add( "why", why );
+    Coordinator::log( entry );
+  }
+  
+  void
+  Producer::logDataSent( const ndn::Data& data,
+                         const ndn::AuthTag& auth ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "DataSent");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
+    entry.add( "auth-prefix", auth.getPrefix().toUri() );
+    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
+    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
+    Coordinator::log( entry );
+  }
+  void
+  Producer::logDataSent( const ndn::Data& data) const
+  {
+    Coordinator::LogEntry entry( "Producer", "DataSent");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
+    Coordinator::log( entry );
+  }
+  
+  void
+  Producer::logNoReCacheFlagSet( const ndn::Data& data,
+                                const ndn::Interest& interest ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "NoReCacheFlagSet");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "data-name", data.getName().toUri() );
+    entry.add( "interest-val-prob", std::to_string( interest.getAuthValidityProb() ) );
+    Coordinator::log( entry );
+  }
+
+  void
+  Producer::logSentAuth( const ndn::AuthTag& auth ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "AuthSent");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "auth-prefix", auth.getPrefix().toUri() );
+    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
+    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
+    Coordinator::log( entry );
+  }
+
+  void
+  Producer::logReceivedRequest( const ndn::Interest& interest ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "ReceivedRequest");
+    const ndn::AuthTag& auth = interest.getAuthTag();
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "interest-name", interest.getName().toUri() );
+    entry.add( "auth-prefix", auth.getPrefix().toUri() );
+    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
+    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
+    Coordinator::log( entry );
+  }
+
+  void
+  Producer::logProducerStart( void ) const
+  {
+    Coordinator::LogEntry entry( "Producer", "ProducerStarted");
+    entry.add( "id", std::to_string( m_instance_id ) );
+    entry.add( "prefix", m_prefix.toUri() );
+    entry.add( "contents", m_names_string );
+    Coordinator::log( entry );
   }
 }

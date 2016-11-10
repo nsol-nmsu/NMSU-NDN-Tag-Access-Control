@@ -124,7 +124,7 @@ enum {
   *   edge router already has the interest's tag cached, and so should
   *   not recache the tag when Data is returned.
   */
-  NoReCacheFlag = 34, //36,
+  NoReCacheFlag = 40, //36,
 
   /** An AuthTag is a specialized certificate issued by producers to
   *   grant consumers with access to their data
@@ -191,7 +191,7 @@ enum ContentTypeValue {
   // Begin MODs by Ray Stubbs [stubbs.ray@gmail.com]
 
   /** Contains an AuthTag from a producer granting data access to a consumer */
-  ContentType_AuthGranted = 4,
+  ContentType_Auth = 4,
 
   /** Indicates that the interest issued by the consumer does not
   *   have the requered access ( AuthTag ) to retrieve the content,

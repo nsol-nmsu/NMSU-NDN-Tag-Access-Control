@@ -182,6 +182,19 @@ private:
   void
   SetNames( std::string names );
 
+private: // logging
+    void
+    logReceivedData( const ndn::Data& data ) const;
+    void
+    logSentRequest( const ndn::Interest& interest ) const;
+    
+    void
+    logTimeout( const ndn::Name& req_name,
+                uint32_t req_seq ) const;
+protected:
+    uint32_t m_instance_id;
+    static uint32_t s_instance_id;
+
 protected:
   ns3::Ptr<ns3::UniformRandomVariable> m_rand; ///< @brief uniform random number generator
   ns3::Ptr<ns3::ExponentialRandomVariable> m_exp_rand;

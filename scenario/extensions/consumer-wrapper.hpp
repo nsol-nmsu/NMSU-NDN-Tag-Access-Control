@@ -49,28 +49,29 @@ namespace ndntac
        Reset() override;
     
     private:
-          bool
-          EnsureAuth();
-          
-          void
-          SendAuthRequest();
+      bool
+      EnsureAuth();
+      
+      void
+      SendAuthRequest();
+    private:
+        void
+        logRequestedAuth( const ndn::Interest& interest ) const;
+        
+        void
+        logReceivedAuth( const ndn::Data& data ) const;
+        
     private:
         std::shared_ptr<ndn::AuthTag> m_auth_tag = NULL;
         ns3::EventId             m_auth_event;
         bool                     m_pending_auth = false;
         ns3::Time                m_auth_timeout;
-        
-        uint32_t                 m_instance_id;
-        static uint32_t          s_instance_id;
           
     };
     
     typedef ConsumerWrapper< WindowConsumer > AuthWindowConsumer;
 
     template class ConsumerWrapper<WindowConsumer>;
-    
-    template< typename Consumer >
-    uint32_t ConsumerWrapper<Consumer>::s_instance_id = 0;
     
     template< typename Consumer >
     ns3::TypeId
@@ -87,7 +88,6 @@ namespace ndntac
     template< typename Consumer >
     ConsumerWrapper<Consumer>::ConsumerWrapper()
     {
-        m_instance_id = s_instance_id++;
     };
     
     template< typename Consumer >
@@ -129,13 +129,14 @@ namespace ndntac
           ndn::time::milliseconds interestLifeTime(Consumer::m_interestLifeTime.GetMilliSeconds());
           interest->setInterestLifetime(interestLifeTime);
           interest->setAuthTag( ndn::AuthTag( 0 ) );
+          interest->setRouteTracker( ::ndn::RouteTracker() );
 
           Consumer::WillSendOutInterest(0);
 
           Consumer::m_transmittedInterests(interest, this, Consumer::m_face);
           Consumer::m_face->onReceiveInterest(*interest);
           
-          Coordinator::consumerRequestedAuth( m_instance_id, interest->getName() );
+          logRequestedAuth( *interest );
     };
     
     template< typename Consumer >
@@ -159,41 +160,39 @@ namespace ndntac
     void
     ConsumerWrapper<Consumer>::OnData( std::shared_ptr< const ndn::Data > data )
     {
-        if( data->getName().get(1) == ndn::name::Component( "AUTH_TAG" ) )
+        // data returned to the consumer should always be in
+        // the consumer network
+        BOOST_ASSERT( data->getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK );
+        
+        switch( data->getContentType() )
         {
-            if( data->getContentType() == ndn::tlv::ContentType_AuthGranted )
+            case ndn::tlv::ContentType_Auth:
             {
                 const ndn::Block& payload = data->getContent().blockFromValue();
                 m_auth_tag = make_shared<ndn::AuthTag>( payload );
                 m_pending_auth = false;
-                Coordinator::consumerReceivedAuth( m_instance_id, data->getName() );
+                
+                logReceivedAuth( *data );
+                break;
             }
-            else
-            {
-                Coordinator::consumerAuthDenied( m_instance_id, data->getName() );
-            }
-        }
-        else
-        {
-            switch( data->getContentType() )
-            {
-                case  ndn::tlv::ContentType_Blob:
-                    Coordinator::consumerRequestSatisfied( m_instance_id, data->getName() );
-                    break;
-                case ndn::tlv::ContentType_Nack:
-                    Coordinator::consumerRequestRejected( m_instance_id, data->getName() );
-                    break;
-                case ndn::tlv::ContentType_EoC:
-                    Coordinator::consumerOther( m_instance_id,
-                                                string( "Finished content ")
-                                                + Consumer::m_interestName.toUri() );
-                    break;
-                default:
-                    Coordinator::consumerOther( m_instance_id, "Unexpected response type" );
-                    break;
-            }
-            
-            Consumer::OnData( data );
+            case ndn::tlv::ContentType_AuthDenial:
+                // TODO: log stuff
+                break;
+            case  ndn::tlv::ContentType_Blob:
+                // TODO: Log stuff
+                Consumer::OnData( data );
+                break;
+            case ndn::tlv::ContentType_Nack:
+                // TODO: Log stuff
+                Consumer::OnData( data );
+                break;
+            case ndn::tlv::ContentType_EoC:
+                // TODO: Log stuff
+                Consumer::OnData( data );
+                break;
+            default:
+                // TODO: Log stuff, unexpected data type
+                break;
         }
     };
     
@@ -217,6 +216,26 @@ namespace ndntac
     {
         m_auth_tag = NULL;
         Consumer::Reset();
+    }
+
+    template< typename Consumer >
+    void
+    ConsumerWrapper<Consumer>::logRequestedAuth( const ndn::Interest& interest ) const
+    {
+        Coordinator::LogEntry entry( "Consumer", "RequestedAuth");
+        entry.add( "id", std::to_string( Consumer::m_instance_id ) );
+        entry.add( "interest-name", interest.getName().toUri() );
+        Coordinator::log( entry );
+    }
+    
+    template< typename Consumer >
+    void
+    ConsumerWrapper<Consumer>::logReceivedAuth( const ndn::Data& data ) const
+    {
+        Coordinator::LogEntry entry( "Consumer", "ReceivedAuth");
+        entry.add( "id", std::to_string( Consumer::m_instance_id ) );
+        entry.add( "interest-name", data.getName().toUri() );
+        Coordinator::log( entry );
     }
 };
 
