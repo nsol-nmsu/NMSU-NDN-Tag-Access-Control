@@ -43,7 +43,8 @@ namespace ndntac
     protected:
       virtual void
       onDataDenied( const ndn::Data& data,
-                    const ndn::Interest& interest );
+                    const ndn::Interest& interest,
+                    const std::string& why );
       virtual void
       onDataSatisfied( const ndn::Data& data,
                        const ndn::Interest& interest );

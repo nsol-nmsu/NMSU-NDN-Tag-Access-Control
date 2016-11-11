@@ -222,20 +222,22 @@ namespace ndntac
     void
     ConsumerWrapper<Consumer>::logRequestedAuth( const ndn::Interest& interest ) const
     {
+        /*
         Coordinator::LogEntry entry( "Consumer", "RequestedAuth");
         entry.add( "id", std::to_string( Consumer::m_instance_id ) );
         entry.add( "interest-name", interest.getName().toUri() );
-        Coordinator::log( entry );
+        Coordinator::log( entry );*/
     }
     
     template< typename Consumer >
     void
     ConsumerWrapper<Consumer>::logReceivedAuth( const ndn::Data& data ) const
     {
+        /*
         Coordinator::LogEntry entry( "Consumer", "ReceivedAuth");
         entry.add( "id", std::to_string( Consumer::m_instance_id ) );
         entry.add( "interest-name", data.getName().toUri() );
-        Coordinator::log( entry );
+        Coordinator::log( entry );*/
     }
 };
 

@@ -14,12 +14,11 @@
 #include "producer.hpp"
 #include "router-strategy.hpp"
 #include "edge-strategy.hpp"
-#include "log-filter.hpp"
-#include "coordinator.hpp"
 #include "consumer-wrapper.hpp"
 #include "pconfig-reader.hpp"
 #include "zipf-consumer.hpp"
 #include "window-consumer.hpp"
+#include "include-only-once.hpp"
 
 
 using namespace std;
@@ -140,11 +139,9 @@ namespace ns3
             ndn::GlobalRoutingHelper::CalculateRoutes();
             
             
-            Coordinator::simulationStarted( "scenarios/auth-tag-simulation/logs/SIMUATION.log" );
             Simulator::Stop( Seconds( 10 ) );
             Simulator::Run();
             Simulator::Destroy();
-            Coordinator::simulationFinished();
             return 0;
                 
                 

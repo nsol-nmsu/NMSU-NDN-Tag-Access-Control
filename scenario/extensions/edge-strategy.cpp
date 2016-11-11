@@ -1,7 +1,6 @@
 #include "edge-strategy.hpp"
 #include "ndn-cxx/encoding/block-helpers.hpp"
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
-#include "coordinator.hpp"
 #include "ndn-cxx/encoding/block-helpers.hpp"
 
 namespace ndntac
@@ -172,7 +171,9 @@ EdgeStrategy::toNack( ndn::Data& data, const ndn::Interest& interest )
 }
 
 void
-EdgeStrategy::onDataDenied( const ndn::Data& data, const ndn::Interest& interest )
+EdgeStrategy::onDataDenied( const ndn::Data& data,
+                            const ndn::Interest& interest,
+                            const std::string& why )
 {
     // if the data is denied then we add the
     // tag used to retrieve it to the negative
@@ -183,7 +184,7 @@ EdgeStrategy::onDataDenied( const ndn::Data& data, const ndn::Interest& interest
         m_negative_cache.insert( interest.getAuthTag() );
     
     // do whatever a normal router would do
-    RouterStrategy::onDataDenied( data, interest );
+    RouterStrategy::onDataDenied( data, interest, why );
 }
 
 void

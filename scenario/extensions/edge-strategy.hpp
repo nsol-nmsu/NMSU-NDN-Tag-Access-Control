@@ -47,7 +47,8 @@ namespace ndntac
     
       void
       onDataDenied( const ndn::Data& data,
-                    const ndn::Interest& interest ) override;
+                    const ndn::Interest& interest,
+                    const std::string& why ) override;
       void
       onDataSatisfied( const ndn::Data& data,
                        const ndn::Interest& interest ) override;

@@ -33,7 +33,6 @@
 #include "ns3/integer.h"
 #include "ns3/double.h"
 
-#include "coordinator.hpp"
 
 #include "utils/ndn-ns3-packet-tag.hpp"
 #include "model/ndn-app-face.hpp"
@@ -431,32 +430,35 @@ ZipfConsumer::WillSendOutInterest(uint32_t sequenceNumber)
 void
 ZipfConsumer::logReceivedData( const Data& data ) const
 {
+    /*
     Coordinator::LogEntry entry( "Consumer", "ReceivedData");
     entry.add( "id", std::to_string( m_instance_id ) );
     entry.add( "data-name", data.getName().toUri() );
     entry.add( "seq", data.getName().get(-1).toUri() );
-    Coordinator::log( entry );
+    Coordinator::log( entry );*/
 }
 
 void
 ZipfConsumer::logSentRequest( const Interest& interest ) const
 {
+    /*
     Coordinator::LogEntry entry( "Consumer", "SentRequest");
     entry.add( "id", std::to_string( m_instance_id ) );
     entry.add( "interest-name", interest.getName().toUri() );
     entry.add( "seq", interest.getName().get(-1).toUri() );
-    Coordinator::log( entry );
+    Coordinator::log( entry );*/
 }
 
 void
 ZipfConsumer::logTimeout( const Name& req_name,
                           uint32_t req_seq ) const
     {
+        /*
         Coordinator::LogEntry entry( "Consumer", "Timeout");
         entry.add( "id", std::to_string( m_instance_id ) );
         entry.add( "interest-name", req_name.toUri() );
         entry.add( "seq", std::to_string( req_seq ) );
-        Coordinator::log( entry );
+        Coordinator::log( entry );*/
     }
 
 } // namespace ndntac

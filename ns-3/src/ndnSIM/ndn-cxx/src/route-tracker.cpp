@@ -99,6 +99,14 @@ namespace ndn
          return length;
 
     };
+    
+    template size_t
+    RouteTracker::wireEncode<encoding::EncoderTag>
+    ( EncodingImpl< encoding::EncoderTag > &encoder ) const;
+    
+    template size_t
+    RouteTracker::wireEncode<encoding::EstimatorTag>
+    ( EncodingImpl< encoding::EstimatorTag > &encoder ) const;
 
 
     const Block& RouteTracker::wireEncode() const

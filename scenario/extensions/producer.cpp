@@ -1,8 +1,10 @@
 #include "producer.hpp"
-#include "coordinator.hpp"
+#include "ns3/ndnSIM-module.h"
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 #include <sstream>
 #include <boost/regex.hpp>
+#include "log.hpp"
+#include "logger.hpp"
 
 extern "C"
 {
@@ -322,93 +324,124 @@ namespace ndntac
                            const ndn::AuthTag& auth,
                            const std::string& why ) const
   {
-    Coordinator::LogEntry entry( "Producer", "DataDenied");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
-    entry.add( "auth-prefix", auth.getPrefix().toUri() );
-    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
-    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
-    entry.add( "why", why );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'data-name'     : $data_name, "
+                            "  'data-access'   : $data_access, "
+                            "  'auth-prefix'   : $auth_prefix, "
+                            "  'auth-access'   : $auth_access, "
+                            "  'auth-expired'  : $auth_expired, "
+                            "  'what'          : $what,"
+                            "  'why'           : $why }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "auth_prefix", auth.getPrefix().toUri() );
+  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
+  log->set( "auth_expired", auth.isExpired() );
+  log->set( "what", string("DataDenied") );
+  log->set( "why", why );
+  log->write();
   }
   void
   Producer::logDataDenied( const ndn::Data& data,
                            const std::string& why ) const
   {
-    Coordinator::LogEntry entry( "Producer", "DataDenied");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
-    entry.add( "why", why );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'data-name'     : $data_name, "
+                            "  'data-access'   : $data_access, "
+                            "  'what'          : $what, "
+                            "  'why'           : $why }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "what", string("DataDenied") );
+  log->set( "why", why );
+  log->write();
   }
   
   void
   Producer::logDataSent( const ndn::Data& data,
                          const ndn::AuthTag& auth ) const
   {
-    Coordinator::LogEntry entry( "Producer", "DataSent");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
-    entry.add( "auth-prefix", auth.getPrefix().toUri() );
-    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
-    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'data-name'     : $data_name, "
+                            "  'data-access'   : $data_access, "
+                            "  'auth-prefix'   : $auth_prefix, "
+                            "  'auth-access'   : $auth_access, "
+                            "  'auth-expired'  : $auth_expired, "
+                            "  'what'          : $what }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "auth_prefix", auth.getPrefix().toUri() );
+  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
+  log->set( "auth_expired", auth.isExpired() );
+  log->set( "what", string("DataSent") );
+  log->write();
   }
   void
   Producer::logDataSent( const ndn::Data& data) const
   {
-    Coordinator::LogEntry entry( "Producer", "DataSent");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "data-access", std::to_string( (unsigned)data.getAccessLevel() ) );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'data-name'     : $data_name, "
+                            "  'data-access'   : $data_access, "
+                            "  'what'          : $what }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "what", "DataSent" );
+  log->write();
   }
   
   void
   Producer::logNoReCacheFlagSet( const ndn::Data& data,
                                 const ndn::Interest& interest ) const
   {
-    Coordinator::LogEntry entry( "Producer", "NoReCacheFlagSet");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "interest-val-prob", std::to_string( interest.getAuthValidityProb() ) );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'data-name'        : $data_name, "
+                            "  'interest-vprob'   : $vprob, "
+                            "  'what'             : $what }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "vprob", (uint64_t)interest.getAuthValidityProb() );
+  log->set( "what", string("NoReCacheFlagSet") );
+  log->write();
   }
 
   void
   Producer::logSentAuth( const ndn::AuthTag& auth ) const
   {
-    Coordinator::LogEntry entry( "Producer", "AuthSent");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "auth-prefix", auth.getPrefix().toUri() );
-    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
-    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'auth-prefix' : $auth_prefix, "
+                            "  'what'          : $what }" );
+  log->set( "auth_prefix", auth.getPrefix().toUri() );
+  log->set( "what", string("SentAuth") );
+  log->write();
   }
 
   void
   Producer::logReceivedRequest( const ndn::Interest& interest ) const
   {
-    Coordinator::LogEntry entry( "Producer", "ReceivedRequest");
-    const ndn::AuthTag& auth = interest.getAuthTag();
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "interest-name", interest.getName().toUri() );
-    entry.add( "auth-prefix", auth.getPrefix().toUri() );
-    entry.add( "auth-access", std::to_string( (unsigned)auth.getAccessLevel() ) );
-    entry.add( "auth-expired", auth.isExpired() ? "true" : "false" );
-    Coordinator::log( entry );
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Producer",
+                            "{ 'interest-name' : $interest_name, "
+                            "  'auth-prefix'   : $auth_prefix, "
+                            "  'auth-access'   : $auth_access, "
+                            "  'auth-expired'  : $auth_expired, "
+                            "  'what'          : $what  }" );
+  const ndn::AuthTag& auth = interest.getAuthTag();
+  log->set( "interest_name", interest.getName().toUri() );
+  log->set( "auth_prefix", auth.getPrefix().toUri() );
+  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
+  log->set( "auth_expired", auth.isExpired() );
+  log->set( "what", string("ReceivedRequest") );
+  log->write();
   }
 
   void
   Producer::logProducerStart( void ) const
   {
-    Coordinator::LogEntry entry( "Producer", "ProducerStarted");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "prefix", m_prefix.toUri() );
-    entry.add( "contents", m_names_string );
-    Coordinator::log( entry );
+    // NADA
   }
 }
