@@ -97,6 +97,12 @@ public:
   Interest( const Interest& other );
   
   /**
+  * @brief Assignment
+  **/
+  Interest&
+  operator=( const Interest& other );
+  
+  /**
    * @brief Fast encoding or block size estimation
    */
   template<encoding::Tag TAG>

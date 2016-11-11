@@ -60,6 +60,13 @@ Interest::Interest( const Interest& other )
     wireDecode( other.wireEncode() );
 }
 
+Interest&
+Interest::operator=( const Interest& other )
+{
+    wireDecode( other.wireEncode() );
+    return *this;
+}
+
 uint32_t
 Interest::getNonce() const
 {
