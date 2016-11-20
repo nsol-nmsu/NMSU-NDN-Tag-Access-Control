@@ -6,8 +6,13 @@
 namespace ndntac
 {
 
+uint32_t
+RouterStrategy::s_instance_id = 0;
+
 const ndn::Name
 RouterStrategy::STRATEGY_NAME = "ndn:/localhost/nfd/strategy/ndntac-router-strategy";
+string
+RouterStrategy::s_config = "config/router_config.jx9";
 const ns3::Time
 RouterStrategy::s_router_signature_delay = ns3::NanoSeconds( 30345 );
 const ns3::Time
@@ -21,7 +26,7 @@ RouterStrategy::RouterStrategy( nfd::Forwarder& forwarder,
                                 , m_auth_cache( 1e-10, 10000 )
                                 , m_forwarder( forwarder )
 {
-m_instance_id = rand();
+m_instance_id = s_instance_id++;
 }
   
 bool
@@ -202,9 +207,10 @@ RouterStrategy::onDataPreserved( const ndn::Data& data,
 
 void
 RouterStrategy::onInterestDropped( const ndn::Interest& interest,
-                                   const nfd::Face& face )
+                                   const nfd::Face& face,
+                                   const std::string& why )
 {
-    // NADA
+    logInterestDropped( interest, why );
 }
 
 void
@@ -212,6 +218,9 @@ RouterStrategy::logDataDenied( const ndn::Data& data,
                               const ndn::AuthTag& auth,
                               const std::string& why ) const
 {
+  if( !shouldLogDataDenied() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'data-name'     : $data_name, "
@@ -219,15 +228,17 @@ RouterStrategy::logDataDenied( const ndn::Data& data,
                             "  'auth-prefix'   : $auth_prefix, "
                             "  'auth-access'   : $auth_access, "
                             "  'auth-expired'  : $auth_expired, "
+                            "  'why'           : $why, "
                             "  'what'          : $what,"
-                            "  'why'           : $why }" );
+                            "  'who'           : $who }" );
   log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "data_access", (int64_t)data.getAccessLevel() );
   log->set( "auth_prefix", auth.getPrefix().toUri() );
-  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
+  log->set( "auth_access", (int64_t)auth.getAccessLevel() );
   log->set( "auth_expired", auth.isExpired() );
-  log->set( "what", string("DataDenied") );
   log->set( "why", why );
+  log->set( "what", string("DataDenied") );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
 }
 
@@ -235,16 +246,21 @@ void
 RouterStrategy::logDataDenied( const ndn::Data& data,
                              const std::string& why ) const
 {
+  if( !shouldLogDataDenied() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'data-name'     : $data_name, "
                             "  'data-access'   : $data_access, "
+                            "  'why'           : $why, "
                             "  'what'          : $what, "
-                            "  'why'           : $why }" );
+                            "  'who'           : $who }" );
   log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (uint64_t)data.getAccessLevel() );
-  log->set( "what", string("DataDenied") );
+  log->set( "data_access", (int64_t)data.getAccessLevel() );
   log->set( "why", why );
+  log->set( "what", string("DataDenied") );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
 }
 
@@ -252,6 +268,9 @@ void
 RouterStrategy::logDataSent( const ndn::Data& data,
                             const ndn::AuthTag& auth ) const
 {
+  if( !shouldLogDataSent() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'data-name'     : $data_name, "
@@ -259,26 +278,33 @@ RouterStrategy::logDataSent( const ndn::Data& data,
                             "  'auth-prefix'   : $auth_prefix, "
                             "  'auth-access'   : $auth_access, "
                             "  'auth-expired'  : $auth_expired, "
-                            "  'what'          : $what }" );
+                            "  'what'          : $what, "
+                            "  'who'           : $who }" );
   log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "data_access", (int64_t)data.getAccessLevel() );
   log->set( "auth_prefix", auth.getPrefix().toUri() );
-  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
+  log->set( "auth_access", (int64_t)auth.getAccessLevel() );
   log->set( "auth_expired", auth.isExpired() );
   log->set( "what", string("DataSent") );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
 }
 void
 RouterStrategy::logDataSent( const ndn::Data& data) const
 {
+  if( !shouldLogDataSent() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'data-name'     : $data_name, "
                             "  'data-access'   : $data_access, "
-                            "  'what'          : $what }" );
+                            "  'what'          : $what, "
+                            "  'who'           : $who }" );
   log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (uint64_t)data.getAccessLevel() );
+  log->set( "data_access", (int64_t)data.getAccessLevel() );
   log->set( "what", "DataSent" );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
 }
 
@@ -286,47 +312,88 @@ void
 RouterStrategy::logNoReCacheFlagSet( const ndn::Data& data,
                                     const ndn::Interest& interest ) const
 {
+  if( !shouldLogNoReCacheFlagSet() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'data-name'        : $data_name, "
                             "  'interest-vprob'   : $vprob, "
-                            "  'what'             : $what }" );
+                            "  'what'             : $what, "
+                            "  'who'              : $who }" );
   log->set( "data_name", data.getName().toUri() );
-  log->set( "vprob", (uint64_t)interest.getAuthValidityProb() );
+  log->set( "vprob", (int64_t)interest.getAuthValidityProb() );
   log->set( "what", string("NoReCacheFlagSet") );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
-}
-
-void
-RouterStrategy::logReceivedRequest( const ndn::Interest& interest ) const
-{
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'interest-name' : $interest_name, "
-                            "  'auth-prefix'   : $auth_prefix, "
-                            "  'auth-access'   : $auth_access, "
-                            "  'auth-expired'  : $auth_expired, "
-                            "  'what'          : $what  }" );
-  const ndn::AuthTag& auth = interest.getAuthTag();
-  log->set( "interest_name", interest.getName().toUri() );
-  log->set( "auth_prefix", auth.getPrefix().toUri() );
-  log->set( "auth_access", (uint64_t)auth.getAccessLevel() );
-  log->set( "auth_expired", auth.isExpired() );
-  log->set( "what", string("ReceivedRequest") );
-  log->write();
-  
 }
 
 void
 RouterStrategy::logInterestSent( const ndn::Interest& interest ) const
 {
+  if( !shouldLogInterestSent() )
+    return;
+
   static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
                             "Router",
                             "{ 'interest-name' : $interest_name, "
-                            "  'what'          : $what }" );
+                            "  'what'          : $what, "
+                            "  'who'           : $who }" );
   log->set( "interest_name", interest.getName().toUri() );
   log->set( "what", string("SentInterest") );
+  log->set( "who", (int64_t)m_instance_id );
   log->write();
+}
+
+void
+RouterStrategy::logInterestDropped( const ndn::Interest& interest,
+                                    const std::string& why ) const
+{
+  if( !shouldLogInterestDropped() )
+    return;
+
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Router",
+                            "{ 'interest-name' : $interest_name, "
+                            "  'why'           : $why, "
+                            "  'what'          : $what, "
+                            "  'who'           : $who }" );
+  log->set( "interest_name", interest.getName().toUri() );
+  log->set( "why", why );
+  log->set( "what", string("InterestDropped") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+// these can be modified to control what gets logged
+bool
+RouterStrategy::shouldLogDataDenied( void ) const
+{
+    return true;
+}
+
+bool
+RouterStrategy::shouldLogDataSent( void ) const
+{
+    return false;
+}
+
+bool
+RouterStrategy::shouldLogNoReCacheFlagSet( void ) const
+{
+    return false;
+}
+
+bool
+RouterStrategy::shouldLogInterestSent( void ) const
+{
+    return false;
+}
+
+bool
+RouterStrategy::shouldLogInterestDropped( void ) const
+{
+    return true;
 }
 
 }

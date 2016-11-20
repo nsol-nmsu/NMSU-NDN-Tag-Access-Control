@@ -45,6 +45,8 @@
 #include <boost/random/uniform_real_distribution.hpp>
 #include <boost/random/exponential_distribution.hpp>
 
+#include "logger.hpp"
+
 namespace ndntac {
 
 using namespace ns3;
@@ -104,6 +106,14 @@ ZipfConsumer::ZipfConsumer()
 {
   m_rtt = CreateObject<RttMeanDeviation>();
   m_instance_id = s_instance_id++;
+  
+  // get some number of values from both random distributions
+  // to offset them from the distributions of other consumers
+  for( uint32_t i = 0 ; i < m_instance_id ; i++ )
+  {
+    m_rand->GetValue();
+    m_exp_rand->GetValue();
+  }
 }
 
 void
@@ -314,7 +324,7 @@ ZipfConsumer::SendPacket()
   m_transmittedInterests(interest, this, m_face);
   m_face->onReceiveInterest(*interest);
   
-  logSentRequest( *interest );
+  logSentInterest( *interest );
 
   ScheduleNextPacket();
   
@@ -340,6 +350,8 @@ ZipfConsumer::Reset()
     
     uint32_t zf = GetNextSeq();
     m_interestName = m_names[zf%m_names.size()].second;
+    m_contentStartTime = ns3::Simulator::Now();
+    m_contentSize = 0;
     ScheduleNextPacket();
     
 }
@@ -357,6 +369,7 @@ ZipfConsumer::OnData(shared_ptr<const Data> data)
   App::OnData(data); // tracing inside
   
   logReceivedData( *data );
+  m_contentSize += data->getContent().value_size();
 
   // This could be a problem......
   uint32_t seq = data->getName().at(-1).toSequenceNumber();
@@ -389,11 +402,18 @@ ZipfConsumer::OnData(shared_ptr<const Data> data)
 
   m_rtt->AckSeq(SequenceNumber32(seq));
   
-  // if data is empty then we've retrieved the whole packet
+  // if data is EOC then we've finished the content
   if( data->getContentType() == ::ndn::tlv::ContentType_EoC && !m_finished_content )
   {
     m_finished_content = true;
+    logFinishedContent( m_interestName,
+                        ns3::Simulator::Now() - m_contentStartTime,
+                        m_contentSize );
   }
+  
+  // if data is Nack then log it
+  if( data->getContentType() == ::ndn::tlv::ContentType_Nack )
+    logReceivedNack( *data );
   
 }
 
@@ -428,37 +448,124 @@ ZipfConsumer::WillSendOutInterest(uint32_t sequenceNumber)
 }
 
 void
-ZipfConsumer::logReceivedData( const Data& data ) const
+ZipfConsumer::logFinishedContent( const Name& content,
+                                  ns3::Time duration,
+                                  const size_t size ) const
 {
-    /*
-    Coordinator::LogEntry entry( "Consumer", "ReceivedData");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "data-name", data.getName().toUri() );
-    entry.add( "seq", data.getName().get(-1).toUri() );
-    Coordinator::log( entry );*/
+    if( !shouldLogFinishedContent() )
+        return;
+
+    static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Consumer",
+                            "{ 'content' : $content_name, "
+                            "  'duration': $duration, "
+                            "  'size'    : $size, "
+                            "  'what'    : $what, "
+                            "  'who'     : $who }" );
+    log->set( "content_name", content.toUri() );
+    log->set( "duration", duration.ToInteger( Time::NS ) );
+    log->set( "size", (int64_t) size );
+    log->set( "what", string("FinishedContent") );
+    log->set( "who", (int64_t)m_instance_id );
+    log->write();
 }
 
 void
-ZipfConsumer::logSentRequest( const Interest& interest ) const
+ZipfConsumer::logReceivedNack( const Data& nack ) const
 {
-    /*
-    Coordinator::LogEntry entry( "Consumer", "SentRequest");
-    entry.add( "id", std::to_string( m_instance_id ) );
-    entry.add( "interest-name", interest.getName().toUri() );
-    entry.add( "seq", interest.getName().get(-1).toUri() );
-    Coordinator::log( entry );*/
+    if( !shouldLogReceivedNack() )
+        return;
+
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Consumer",
+                            "{ 'nack-name' : $nack_name, "
+                            "  'what'      : $what, "
+                            "  'who'       : $who }" );
+  log->set( "nack_name", nack.getName().toUri() );
+  log->set( "what", string("ReceivedNack") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+void
+ZipfConsumer::logReceivedData( const Data& data ) const
+{
+  if( !shouldLogReceivedData() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Consumer",
+                            "{ 'data-name' : $data_name, "
+                            "  'what'      : $what, "
+                            "  'who'       : $who  }" );
+  log->set( "data_name", data.getName().toUri() );
+  log->set( "what", string("ReceivedData") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+void
+ZipfConsumer::logSentInterest( const Interest& interest ) const
+{
+  if( !shouldLogSentInterest() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Consumer",
+                            "{ 'interest-name' : $interest_name, "
+                            "  'what'          : $what, "
+                            "  'who'           : $who  }" );
+  log->set( "interest_name", interest.getName().toUri() );
+  log->set( "what", string("SentRequest") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
 }
 
 void
 ZipfConsumer::logTimeout( const Name& req_name,
                           uint32_t req_seq ) const
-    {
-        /*
-        Coordinator::LogEntry entry( "Consumer", "Timeout");
-        entry.add( "id", std::to_string( m_instance_id ) );
-        entry.add( "interest-name", req_name.toUri() );
-        entry.add( "seq", std::to_string( req_seq ) );
-        Coordinator::log( entry );*/
-    }
+{
+  if( !shouldLogTimeout() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Consumer",
+                            "{ 'interest-name' : $interest_name, "
+                            "  'seq'           : $seq, "
+                            "  'what'          : $what, "
+                            "  'who'           : $who  }" );
+  log->set( "interest_name", req_name.toUri() );
+  log->set( "seq", (int64_t)req_seq );
+  log->set( "what", string("Timeout") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+bool
+ZipfConsumer::shouldLogFinishedContent( void ) const
+{
+    return true;
+}
+
+bool
+ZipfConsumer::shouldLogReceivedNack( void ) const
+{
+    return true;
+}
+
+bool
+ZipfConsumer::shouldLogReceivedData( void ) const
+{
+    return false;
+}
+
+bool
+ZipfConsumer::shouldLogSentInterest( void ) const
+{
+    return false;
+}
+
+bool
+ZipfConsumer::shouldLogTimeout( void ) const
+{
+    return true;
+}
 
 } // namespace ndntac

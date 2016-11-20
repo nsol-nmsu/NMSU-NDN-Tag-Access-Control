@@ -92,17 +92,21 @@ public:
    *  Create NS3 topology using information generated from BRITE.
    *
    *  \param stack Internet stack to assign to nodes in topology
+   *  \param p2p   Point to point helper to use for linking
    */
-  void BuildBriteTopology (InternetStackHelper& stack);
+  void BuildBriteTopology (InternetStackHelper& stack, PointToPointHelper& p2p );
 
   /**
    * Create NS3 topology using information generated from BRITE and configure topology for MPI use.
    *
    * \param stack Internet stack to assign to nodes in topology.
+   * \param p2p   Point to point helper to use for linking
    * \param systemCount The number of MPI instances to be used in the simulation.
    *
    */
-  void BuildBriteTopology (InternetStackHelper& stack, const uint32_t systemCount);
+  void BuildBriteTopology (InternetStackHelper& stack,
+                           PointToPointHelper& p2p,
+                           const uint32_t systemCount);
 
   /**
    * Returns the number of router leaf nodes for a given AS
@@ -233,7 +237,7 @@ private:
 
   void BuildBriteNodeInfoList (void);
   void BuildBriteEdgeInfoList (void);
-  void ConstructTopology (void);
+  void ConstructTopology ( PointToPointHelper& p2p );
   void GenerateBriteTopology (void);
 
   /// brite configuration file to use
@@ -282,9 +286,6 @@ private:
   BriteEdgeInfoList m_briteEdgeInfoList;
   /**@}*/
 
-  /// used to create the links within the topology
-  PointToPointHelper m_britePointToPointHelper;
-
   /// random variable stream for brite seed file
   Ptr<UniformRandomVariable> m_uv;
 };
@@ -292,3 +293,4 @@ private:
 } // namespace ns3
 
 #endif /* BRITE_TOPOLOGY_HELPER_H */
+

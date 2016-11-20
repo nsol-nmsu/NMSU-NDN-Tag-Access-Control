@@ -184,13 +184,40 @@ private:
 
 private: // logging
     void
-    logReceivedData( const ndn::Data& data ) const;
+    logFinishedContent( const ndn::Name& content,
+                        ns3::Time duration,
+                        const size_t size ) const;
+    
     void
-    logSentRequest( const ndn::Interest& interest ) const;
+    logReceivedNack( const ndn::Data& nack ) const;
+    
+    void
+    logReceivedData( const ndn::Data& data ) const;
+    
+    void
+    logSentInterest( const ndn::Interest& interest ) const;
     
     void
     logTimeout( const ndn::Name& req_name,
                 uint32_t req_seq ) const;
+    
+    bool
+    shouldLogFinishedContent( void ) const;
+    
+    bool
+    shouldLogReceivedNack( void ) const;
+    
+    bool
+    shouldLogReceivedData( void ) const;
+    
+    bool
+    shouldLogSentData( void ) const;
+    
+    bool
+    shouldLogSentInterest( void ) const;
+    
+    bool
+    shouldLogTimeout( void ) const;
 protected:
     uint32_t m_instance_id;
     static uint32_t s_instance_id;
@@ -215,6 +242,12 @@ protected:
   ns3::Time m_offTime;          ///< \brief Time interval between packets
   ndn::Name m_interestName;     ///< \brief NDN Name of the Interest (use Name)
   ns3::Time m_interestLifeTime; ///< \brief LifeTime for interest packet
+  
+  // keep track of the time that we started the content
+  ns3::Time m_contentStartTime;
+  
+  // current size of the content begin retrieved
+  size_t m_contentSize;
 
   /// @cond include_hidden
   /**

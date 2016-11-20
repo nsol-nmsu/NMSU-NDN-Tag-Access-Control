@@ -55,7 +55,8 @@ namespace ndntac
       
       virtual void
       onInterestDropped( const ndn::Interest& interest,
-                         const nfd::Face& );
+                         const nfd::Face&,
+                         const std::string& why );
       
       virtual void
       toNack( ndn::Data& data, const ndn::Interest& interest );
@@ -66,30 +67,48 @@ namespace ndntac
       virtual void
       toPreserve( ndn::Data& data, const ndn::Interest& interest );
 
-      void
+      virtual void
       logDataDenied( const ndn::Data& data,
                      const ndn::AuthTag& auth,
                      const std::string& why ) const;
-      void
+      virtual void
       logDataDenied( const ndn::Data& data,
                      const std::string& why ) const;
-      void
+      virtual void
       logDataSent( const ndn::Data& data,
                    const ndn::AuthTag& auth ) const;
-      void
+      virtual void
       logDataSent( const ndn::Data& data ) const;
-      void
+      
+      virtual void
       logNoReCacheFlagSet( const ndn::Data& data,
                            const ndn::Interest& interest ) const;
       
-      void
+      virtual void
       logInterestSent( const ndn::Interest& interest ) const;
-    
-      void
-      logReceivedRequest( const ndn::Interest& interest ) const;
+      
+      virtual void
+      logInterestDropped( const ndn::Interest& interest,
+                          const std::string& why ) const;
+      
+      virtual bool
+      shouldLogDataDenied( void ) const;
+      
+      virtual bool
+      shouldLogDataSent( void ) const;
+      
+      virtual bool
+      shouldLogNoReCacheFlagSet( void ) const;
+      
+      virtual bool
+      shouldLogInterestSent( void ) const;
+      
+      virtual bool
+      shouldLogInterestDropped( void ) const;
        
 
     public:
+       static std::string s_config;
        static const ndn::Name STRATEGY_NAME;
     protected:
             TxQueue m_queue;
@@ -98,6 +117,7 @@ namespace ndntac
 
     protected:
             uint32_t m_instance_id;
+            static uint32_t s_instance_id;
     private:
             static const ns3::Time s_router_signature_delay;
             static const ns3::Time s_router_bloom_delay;

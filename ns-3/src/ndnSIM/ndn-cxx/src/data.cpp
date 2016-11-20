@@ -199,8 +199,8 @@ Data::wireDecode(const Block& wire)
   m_name.wireDecode( sportion.get(tlv::Name));
 
  // AccessLevel
- auto val = m_wire.find( tlv::AccessLevel );
- if( val != m_wire.elements_end() )
+ auto val = sportion.find( tlv::AccessLevel );
+ if( val != sportion.elements_end() )
     m_access_level =
         readNonNegativeInteger( sportion.get( tlv::AccessLevel ) );
 

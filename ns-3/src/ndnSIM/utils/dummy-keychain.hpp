@@ -91,6 +91,8 @@ static const uint8_t DUMMY_BAD_SIGNATURE[] =
 static const ndn::SignatureInfo DUMMY_NDN_SIGNATURE_INFO( ndn::tlv::SignatureSha256WithRsa );
 static const ndn::Signature DUMMY_NDN_SIGNATURE( DUMMY_NDN_SIGNATURE_INFO,
                                                  ndn::Block( DUMMY_SIGNATURE, sizeof( DUMMY_SIGNATURE ) ) );
+static const ndn::Signature DUMMY_NDN_BAD_SIGNATURE( DUMMY_NDN_SIGNATURE_INFO,
+                                                    ndn::Block( DUMMY_BAD_SIGNATURE, sizeof( DUMMY_BAD_SIGNATURE ) ) );
 
 class DummyPublicInfo : public SecPublicInfo {
 public:

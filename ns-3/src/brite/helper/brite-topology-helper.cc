@@ -30,6 +30,12 @@
 #include <iostream>
 #include <fstream>
 
+extern "C"
+{
+  #include<unistd.h>
+}
+
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("BriteTopologyHelper");
@@ -328,11 +334,19 @@ void BriteTopologyHelper::GenerateBriteTopology (void)
 
       std::ofstream seedFile;
 
-      //overwrite file if already there
-      seedFile.open ("briteSeedFile.txt", std::ios_base::out | std::ios_base::trunc);
+      // try a few times to open the seed file
+      unsigned retries = 5;
+      do
+      {
+        m_seedFile = m_newSeedFile = "briteSeedFile" + std::to_string(retries) + ".txt";
+        seedFile.open ( m_seedFile, std::ios_base::out | std::ios_base::trunc);
+        sleep( 2 );
+      }
+      while( retries-- && seedFile.fail() );
 
       //verify open
       NS_ASSERT (!seedFile.fail ());
+
 
       //Generate seed file expected by BRITE
       //need unsigned shorts 0-65535
@@ -344,8 +358,6 @@ void BriteTopologyHelper::GenerateBriteTopology (void)
       seedFile << "BANDWIDTH " << m_uv->GetInteger (0, 65535) << " " << m_uv->GetInteger (0, 65535) << " " << m_uv->GetInteger (0, 65535) << std::endl;
       seedFile.close ();
 
-      //if we're using NS3 generated seed files don't want brite to create a new seed file.
-      m_seedFile = m_newSeedFile = "briteSeedFile.txt";
     }
 
   brite::Brite br (m_confFile, m_seedFile, m_newSeedFile);
@@ -356,13 +368,13 @@ void BriteTopologyHelper::GenerateBriteTopology (void)
   //brite automatically spits out the seed values used to a seperate file so no need to keep this anymore
   if (generateSeedFile)
     {
-      remove ("briteSeedFile.txt");
+      remove (m_seedFile.c_str());
     }
 
 }
 
 void
-BriteTopologyHelper::BuildBriteTopology (InternetStackHelper& stack)
+BriteTopologyHelper::BuildBriteTopology (InternetStackHelper& stack, PointToPointHelper& p2p )
 {
   NS_LOG_FUNCTION (this);
 
@@ -383,11 +395,13 @@ BriteTopologyHelper::BuildBriteTopology (InternetStackHelper& stack)
 
   stack.Install (m_nodes);
 
-  ConstructTopology ();
+  ConstructTopology ( p2p );
 }
 
 void
-BriteTopologyHelper::BuildBriteTopology (InternetStackHelper& stack, const uint32_t systemCount)
+BriteTopologyHelper::BuildBriteTopology ( InternetStackHelper& stack,
+                                          PointToPointHelper& p2p,
+                                          const uint32_t systemCount )
 {
   NS_LOG_FUNCTION (this);
 
@@ -413,7 +427,7 @@ BriteTopologyHelper::BuildBriteTopology (InternetStackHelper& stack, const uint3
 
   stack.Install (m_nodes);
 
-  ConstructTopology ();
+  ConstructTopology ( p2p );
 }
 
 void
@@ -441,7 +455,7 @@ BriteTopologyHelper::AssignIpv6Addresses (Ipv6AddressHelper& address)
 }
 
 void
-BriteTopologyHelper::ConstructTopology ()
+BriteTopologyHelper::ConstructTopology ( PointToPointHelper& p2p )
 {
   NS_LOG_FUNCTION (this);
   //create one node container to hold leaf nodes for attaching
@@ -455,14 +469,14 @@ BriteTopologyHelper::ConstructTopology ()
     {
       // Set the link delay
       // The brite value for delay is given in milliseconds
-      m_britePointToPointHelper.SetChannelAttribute ("Delay",
+      p2p.SetChannelAttribute ("Delay",
                                                      TimeValue (Seconds ((*it).delay/1000.0)));
 
       // The brite value for data rate is given in Mbps
-      m_britePointToPointHelper.SetDeviceAttribute ("DataRate",
+      p2p.SetDeviceAttribute ("DataRate",
                                                     DataRateValue (DataRate ((*it).bandwidth * mbpsToBps)));
 
-      m_netDevices.push_back ( new NetDeviceContainer ( m_britePointToPointHelper.Install (m_nodes.Get ((*it).srcId), m_nodes.Get ((*it).destId))));
+      m_netDevices.push_back ( new NetDeviceContainer ( p2p.Install (m_nodes.Get ((*it).srcId), m_nodes.Get ((*it).destId))));
 
       m_numEdges++;
 

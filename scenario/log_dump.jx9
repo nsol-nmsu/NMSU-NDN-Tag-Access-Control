@@ -1,0 +1,19 @@
+while( ( $log = db_fetch( "Consumer" ) ) != null )
+{
+    print "$log\n";
+}
+
+while( ( $log = db_fetch( "Edge" ) ) != null )
+{
+    print "$log\n";
+}
+
+while( ( $log = db_fetch( "Router" ) ) != null )
+{
+    print "$log\n";
+}
+
+while( ( $log = db_fetch( "Producer" ) ) != null )
+{
+    print "$log\n";
+}

@@ -100,7 +100,7 @@ namespace ndntac
     *        field is created if it doesn't exist
     **/
     void
-    set( const std::string& key, uint64_t value )
+    set( const std::string& key, int64_t value )
     {
         // check if variable exists, if not then create
         auto it = m_vars.find( key );
@@ -206,7 +206,7 @@ namespace ndntac
         }
         
         // set the time variable
-        uint64_t time = duration_cast<nanoseconds>(
+        int64_t time = duration_cast<nanoseconds>(
                          system_clock::now().time_since_epoch()
                         ).count();
         set( "time", time );

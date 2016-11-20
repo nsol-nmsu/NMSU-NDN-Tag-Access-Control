@@ -5,4 +5,5 @@
 **/*.udb
 **/*.udb*
 **/*.out
+ns3-install/*
 

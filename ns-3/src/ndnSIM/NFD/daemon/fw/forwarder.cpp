@@ -393,6 +393,12 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     if (it->getFace().get() == &inFace) {
       continue;
     }
+    
+    // debug
+    if( pendingDownstreams.size() > 1 )
+    {
+        int dbg = 0;
+    }
     // give the strategy the final say on whether we
     // send the data or not, and if so then what data we send
     auto tx_data = make_shared<Data>(data);

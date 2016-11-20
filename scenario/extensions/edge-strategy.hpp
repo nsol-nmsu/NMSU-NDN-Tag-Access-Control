@@ -55,10 +55,35 @@ namespace ndntac
       
       void
       toNack( ndn::Data& data, const ndn::Interest& interest ) override;
+
+    protected: // logging
+        
+      virtual void
+      logAuthValidityProbSet( const ndn::Interest& interest,
+                              uint32_t prob,
+                              const std::string& why ) const;
+      
+      virtual void
+      logPositiveCacheInsert( const ndn::AuthTag& auth,
+                              const std::string& why ) const;
+      
+      virtual void
+      logNegativeCacheInsert( const ndn::AuthTag& auth,
+                              const std::string& why ) const;
+      
+      virtual bool
+      shouldLogAuthValidityProbSet( void ) const;
+      
+      virtual bool
+      shouldLogPositiveCacheInsert( void ) const;
+      
+      virtual bool
+      shouldLogNegativeCacheInsert( void ) const; 
       
       
 
     public:
+       static std::string s_config;
        static const ndn::Name STRATEGY_NAME;
     private:
             AuthCache   m_positive_cache;

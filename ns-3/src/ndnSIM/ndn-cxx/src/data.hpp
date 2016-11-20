@@ -360,7 +360,7 @@ public:
   * @brief Update the route hash with the given link identifier
   **/
   void
-  updateRoute( uint32_t link_id );
+  updateRoute( uint64_t link_id );
 
   ///////////////////////////////////////////////////////////////
 
@@ -557,7 +557,7 @@ Data::setRouteTracker( const RouteTracker& tracker )
 }
 
 inline void
-Data::updateRoute( uint32_t link_id )
+Data::updateRoute( uint64_t link_id )
 {
     if( !m_route_tracker ) BOOST_THROW_EXCEPTION(
        Error( "Attempt to update route of data without route tracker" ) 

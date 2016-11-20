@@ -18,11 +18,21 @@
 #include "ndn-cxx/auth-tag.hpp"
 #include "zipf-consumer.hpp"
 #include "window-consumer.hpp"
+#include "ns3/ndnSIM/utils/dummy-keychain.hpp"
+
+#include "logger.hpp"
+
+#define BAD_AUTH_NO_TAG         1
+#define BAD_AUTH_SIGNATURE      2
+#define BAD_AUTH_EXPIRED        3
+#define BAD_AUTH_ROUTE          4
+#define BAD_AUTH_PREFIX         5
+#define BAD_AUTH_KEYLOC         6
 
 namespace ndntac
 {
     // template should only be used on subclasses of ndntac::ZipfConsumer
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     class ConsumerWrapper : public Consumer
     {
     public:
@@ -54,12 +64,25 @@ namespace ndntac
       
       void
       SendAuthRequest();
-    private:
-        void
-        logRequestedAuth( const ndn::Interest& interest ) const;
+    protected:
+       void
+       logRequestedAuth( const ndn::Interest& interest ) const;
         
-        void
-        logReceivedAuth( const ndn::Data& data ) const;
+       void
+       logReceivedAuth( const ndn::AuthTag& auth ) const;
+       
+       void
+       logBadConsumerReceivedData( const ndn::Data& data,
+                                   int badflags ) const;
+        
+       bool
+       shouldLogRequestedAuth( void ) const;
+       
+       bool
+       shouldLogReceivedAuth( void ) const;
+       
+       bool
+       shouldLogBadConsumerReceivedData( void ) const;
         
     private:
         std::shared_ptr<ndn::AuthTag> m_auth_tag = NULL;
@@ -69,31 +92,50 @@ namespace ndntac
           
     };
     
-    typedef ConsumerWrapper< WindowConsumer > AuthWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, 0 > AuthWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_NO_TAG > NoTagWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_SIGNATURE > BadSignatureWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_EXPIRED > ExpiredWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_ROUTE >   BadRouteWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_PREFIX >  BadPrefixWindowConsumer;
+    typedef ConsumerWrapper< WindowConsumer, BAD_AUTH_KEYLOC >  BadKeyLocWindowConsumer;
 
-    template class ConsumerWrapper<WindowConsumer>;
+    template class ConsumerWrapper<WindowConsumer, 0>;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_NO_TAG >;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_SIGNATURE >;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_EXPIRED >;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_ROUTE >;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_PREFIX >;
+    template class ConsumerWrapper< WindowConsumer, BAD_AUTH_KEYLOC >;
     
-    template< typename Consumer >
+    
+    
+    template< typename Consumer, int BadFlags >
     ns3::TypeId
-    ConsumerWrapper<Consumer>::GetTypeId()
+    ConsumerWrapper<Consumer, BadFlags >::GetTypeId()
     {
         static ns3::TypeId tid =
-        ns3::TypeId( (string("ndntac::ConsumerWrapper<") + typeid(Consumer).name() + ">").c_str())
+            ns3::TypeId( ( string( "WrappedConsumer" ) + std::to_string( BadFlags ) ).c_str() )
             .SetGroupName( "Ndn" )
             .SetParent<Consumer>()
-            .template AddConstructor<ConsumerWrapper<Consumer>>();
+            .template AddConstructor< ConsumerWrapper<Consumer, BadFlags> >();
         return tid;
     };
     
-    template< typename Consumer >
-    ConsumerWrapper<Consumer>::ConsumerWrapper()
+    template< typename Consumer, int BadFlags >
+    ConsumerWrapper<Consumer, BadFlags >::ConsumerWrapper()
     {
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     bool
-    ConsumerWrapper<Consumer>::EnsureAuth()
+    ConsumerWrapper<Consumer, BadFlags>::EnsureAuth()
     {
+        // if BAD_AUTH_NO_TAG is set then we don't use the auth
+        // tag and just say that we have authentication
+        if( BAD_AUTH_NO_TAG & BadFlags )
+            return true;
+
         if( m_auth_tag != NULL && !m_auth_tag->isExpired() )
             return true;
         
@@ -102,7 +144,7 @@ namespace ndntac
             if( m_auth_event.IsRunning() )
                 ns3::Simulator::Remove( m_auth_event );
             m_auth_event = ns3::Simulator::ScheduleNow 
-                           ( &ConsumerWrapper<Consumer>::SendAuthRequest,
+                           ( &ConsumerWrapper<Consumer, BadFlags>::SendAuthRequest,
                              this );
             m_pending_auth = true;
             m_auth_timeout = ns3::Simulator::Now() + ns3::Seconds( 0.5 );
@@ -119,13 +161,13 @@ namespace ndntac
         
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::SendAuthRequest()
+    ConsumerWrapper<Consumer, BadFlags>::SendAuthRequest()
     {
           auto interest = make_shared<ndn::Interest>();
           interest->setNonce(Consumer::m_rand->GetValue(0, std::numeric_limits<uint32_t>::max()));
-          interest->setName(Consumer::m_interestName.getPrefix( 1 ).append("AUTH_TAG") );
+          interest->setName(Consumer::m_interestName.getPrefix( 1 ).append("AUTH_TAG").appendNumber( Consumer::m_instance_id ) );
           ndn::time::milliseconds interestLifeTime(Consumer::m_interestLifeTime.GetMilliSeconds());
           interest->setInterestLifetime(interestLifeTime);
           interest->setAuthTag( ndn::AuthTag( 0 ) );
@@ -139,9 +181,9 @@ namespace ndntac
           logRequestedAuth( *interest );
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::SendPacket()
+    ConsumerWrapper<Consumer, BadFlags>::SendPacket()
     {
         if( EnsureAuth() )
         {
@@ -150,95 +192,160 @@ namespace ndntac
         else
         {
             ns3::Simulator::Schedule( ns3::Seconds( 0.2 ),
-                                      &ConsumerWrapper<Consumer>::SendPacket,
+                                      &ConsumerWrapper<Consumer, BadFlags>::SendPacket,
                                       this );
         }
         
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::OnData( std::shared_ptr< const ndn::Data > data )
+    ConsumerWrapper<Consumer, BadFlags>::OnData( std::shared_ptr< const ndn::Data > data )
     {
         // data returned to the consumer should always be in
         // the consumer network
         BOOST_ASSERT( data->getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK );
         
-        switch( data->getContentType() )
+        if( data->getContentType() == ndn::tlv::ContentType_Auth )
         {
-            case ndn::tlv::ContentType_Auth:
+            const ndn::Block& payload = data->getContent().blockFromValue();
+            m_auth_tag = make_shared<ndn::AuthTag>( payload );
+            m_pending_auth = false;
+            
+            // apply all defects from the template tag
+            if( BAD_AUTH_SIGNATURE & BadFlags )
             {
-                const ndn::Block& payload = data->getContent().blockFromValue();
-                m_auth_tag = make_shared<ndn::AuthTag>( payload );
-                m_pending_auth = false;
-                
-                logReceivedAuth( *data );
-                break;
+                m_auth_tag->setSignature( ndn::security::DUMMY_NDN_BAD_SIGNATURE );
             }
-            case ndn::tlv::ContentType_AuthDenial:
-                // TODO: log stuff
-                break;
-            case  ndn::tlv::ContentType_Blob:
-                // TODO: Log stuff
-                Consumer::OnData( data );
-                break;
-            case ndn::tlv::ContentType_Nack:
-                // TODO: Log stuff
-                Consumer::OnData( data );
-                break;
-            case ndn::tlv::ContentType_EoC:
-                // TODO: Log stuff
-                Consumer::OnData( data );
-                break;
-            default:
-                // TODO: Log stuff, unexpected data type
-                break;
+            if( BAD_AUTH_EXPIRED & BadFlags )
+            {
+                m_auth_tag->setExpirationTime( ndn::time::system_clock::now() );
+            }
+            if( BAD_AUTH_ROUTE & BadFlags )
+            {
+                m_auth_tag->setRouteHash( 0 );
+            }
+            if( BAD_AUTH_PREFIX & BadFlags )
+            {
+                m_auth_tag->setPrefix( "bad_prefix" );
+            }
+            if( BAD_AUTH_KEYLOC )
+            {
+                m_auth_tag->setKeyLocator( ndn::KeyLocator( "badloc" ) );
+            }
+            
+            logReceivedAuth( *m_auth_tag );
+        }
+        else
+        {
+             Consumer::OnData( data );
         }
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::StartApplication()
+    ConsumerWrapper<Consumer, BadFlags>::StartApplication()
     {
         Consumer::StartApplication();
     };
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::WillSendOutInterest( std::shared_ptr< ndn::Interest> interest )
+    ConsumerWrapper<Consumer, BadFlags>::WillSendOutInterest( std::shared_ptr< ndn::Interest> interest )
     {
         interest->setAuthTag( *m_auth_tag );
     }
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::Reset()
+    ConsumerWrapper<Consumer, BadFlags>::Reset()
     {
         m_auth_tag = NULL;
         Consumer::Reset();
     }
 
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::logRequestedAuth( const ndn::Interest& interest ) const
+    ConsumerWrapper<Consumer, BadFlags>::logRequestedAuth( const ndn::Interest& interest ) const
     {
-        /*
-        Coordinator::LogEntry entry( "Consumer", "RequestedAuth");
-        entry.add( "id", std::to_string( Consumer::m_instance_id ) );
-        entry.add( "interest-name", interest.getName().toUri() );
-        Coordinator::log( entry );*/
+        if( !shouldLogRequestedAuth() )
+            return;
+
+      static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                                "Consumer",
+                                "{ 'interest-name' : $interest_name, "
+                                "  'what'          : $what, "
+                                "  'who'           : $who  }" );
+      log->set( "interest_name", interest.getName().toUri() );
+      log->set( "what", string("RequestedAuth") );
+      log->set( "who", (int64_t)Consumer::m_instance_id );
+      log->write();
     }
     
-    template< typename Consumer >
+    template< typename Consumer, int BadFlags >
     void
-    ConsumerWrapper<Consumer>::logReceivedAuth( const ndn::Data& data ) const
+    ConsumerWrapper<Consumer, BadFlags>::logReceivedAuth( const ndn::AuthTag& auth ) const
     {
-        /*
-        Coordinator::LogEntry entry( "Consumer", "ReceivedAuth");
-        entry.add( "id", std::to_string( Consumer::m_instance_id ) );
-        entry.add( "interest-name", data.getName().toUri() );
-        Coordinator::log( entry );*/
+        if( !shouldLogReceivedAuth() )
+            return;
+
+          static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                                    "Consumer",
+                                    "{ 'auth-prefix'   : $auth_prefix, "
+                                    "  'auth-access'   : $auth_access, "
+                                    "  'auth-expired'  : $auth_expired, "
+                                    "  'what'          : $what, "
+                                    "  'who'           : $who  }" );
+          log->set( "auth_prefix", auth.getPrefix().toUri() );
+          log->set( "auth_access", (int64_t)auth.getAccessLevel() );
+          log->set( "auth_expired", auth.isExpired() );
+          log->set( "what", string("ReceivedAuth") );
+          log->set( "who", (int64_t)Consumer::m_instance_id );
+          log->write();
     }
+    
+    template< typename Consumer, int BadFlags >
+    void
+    ConsumerWrapper<Consumer, BadFlags>::logBadConsumerReceivedData( const ndn::Data& data,
+                                                                     int badflags ) const
+    {
+        if( !shouldLogBadConsumerReceivedData() )
+            return;
+
+          static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                                    "BadConsumer",
+                                    "{ 'data-name'   : $data_name, "
+                                    "  'badflags'   : $badflags, "
+                                    "  'what'          : $what, "
+                                    "  'who'           : $who  }" );
+          log->set( "data_name", data.getName().toUri() );
+          log->set( "badflags", (int64_t)BadFlags );
+          log->set( "what", string("ReceivedData") );
+          log->set( "who", (int64_t)Consumer::m_instance_id );
+          log->write();
+    }
+    
+    // these can be modified to control what gets logged
+    template< typename Consumer, int BadFlags >
+    bool
+    ConsumerWrapper<Consumer, BadFlags>::shouldLogReceivedAuth( void ) const
+    {
+        return true;
+    }
+    template< typename Consumer, int BadFlags >
+    bool
+    ConsumerWrapper<Consumer, BadFlags>::shouldLogRequestedAuth( void ) const
+    {
+        return true;
+    }
+    template< typename Consumer, int BadFlags >
+    bool
+    ConsumerWrapper<Consumer, BadFlags>::shouldLogBadConsumerReceivedData( void ) const
+    {
+        return true;
+    }
+    
+    
 };
 
 #endif

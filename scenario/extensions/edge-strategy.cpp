@@ -3,11 +3,15 @@
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 #include "ndn-cxx/encoding/block-helpers.hpp"
 
+#include "logger.hpp"
+
 namespace ndntac
 {
 
   const ndn::Name
   EdgeStrategy::STRATEGY_NAME = "ndn:/localhost/nfd/strategy/ndntac-edge-strategy";
+  string
+  EdgeStrategy::s_config = "config/edge_config.jx9";
   const ns3::Time
   EdgeStrategy::s_edge_signature_delay = ns3::NanoSeconds( 30345 );
   const ns3::Time
@@ -42,10 +46,18 @@ EdgeStrategy::filterOutgoingData
         // an internet network
         case ndn::RouteTracker::EXIT_NETWORK:
             data.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
+            
+            // data should always have exit route of zero when
+            // in the internet network
+            BOOST_ASSERT( data.getExitRoute() == 0 );
             break;
         // data moving from an internet network to a consumer network
         case ndn::RouteTracker::INTERNET_NETWORK:
             data.setCurrentNetwork( ndn::RouteTracker::ENTRY_NETWORK );
+            
+            // data should always have internet and exit route
+            // of zero when in the entry network
+            BOOST_ASSERT( data.getInternetRoute() == 0 );
             break;
         default:
             //NADA
@@ -77,7 +89,7 @@ EdgeStrategy::filterOutgoingInterest
         case ndn::RouteTracker::ENTRY_NETWORK:
             interest.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
             break;
-        // interest moving from an internet network to a produer network
+        // interest moving from an internet network to a producer network
         case ndn::RouteTracker::INTERNET_NETWORK:
             interest.setCurrentNetwork( ndn::RouteTracker::EXIT_NETWORK );
             break;
@@ -102,7 +114,7 @@ EdgeStrategy::filterOutgoingInterest
     // then we can drop the interest
     if( auth.isExpired() )
     {
-        onInterestDropped( interest, face );
+        onInterestDropped( interest, face, "Expired auth" );
         return false;
     }
     
@@ -110,7 +122,7 @@ EdgeStrategy::filterOutgoingInterest
     // then we drop the interest
     if( !auth.getPrefix().isPrefixOf( interest.getName() ) )
     {
-        onInterestDropped( interest, face );
+        onInterestDropped( interest, face, "Mismatched prefix" );
         return false;
     }
     
@@ -120,8 +132,10 @@ EdgeStrategy::filterOutgoingInterest
     {
         double fpp = m_positive_cache.getEffectiveFPP();
         double prob = (double)1.0 / fpp;
-        uint64_t iprob = prob*0xFFFFFFFF;
+        uint32_t iprob = prob*0xFFFFFFFF;
         interest.setAuthValidityProb( iprob );
+        
+        logAuthValidityProbSet( interest, iprob, "positive cache" );
     }
     else
     {
@@ -139,11 +153,15 @@ EdgeStrategy::filterOutgoingInterest
                 // and put auth into positive cache
                 interest.setAuthValidityProb( 0xFFFFFFFF );
                 m_positive_cache.insert( auth );
+                
+                logAuthValidityProbSet( interest, 0xFFFFFFFF,
+                                        "negative cache, validated manually" );
+                logPositiveCacheInsert( auth, "negative cache, validated manually" );
             }
             else
             {
                 // otherwise we drop the interest
-                onInterestDropped( interest, face );
+                onInterestDropped( interest, face, "negative cache, manual validation failed" );
                 return false;
             }
         }
@@ -152,6 +170,7 @@ EdgeStrategy::filterOutgoingInterest
             // if the auth isn't in either cache then
             // we set validity probability to 0
             interest.setAuthValidityProb( 0 );
+            logAuthValidityProbSet( interest, 0, "not in cache" );
         }
     }
     
@@ -181,7 +200,10 @@ EdgeStrategy::onDataDenied( const ndn::Data& data,
     // when the data is leaving the internet
     // and going into the client network
     if( data.getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK )
+    {
         m_negative_cache.insert( interest.getAuthTag() );
+        logNegativeCacheInsert( interest.getAuthTag(), why );
+    }
     
     // do whatever a normal router would do
     RouterStrategy::onDataDenied( data, interest, why );
@@ -196,9 +218,98 @@ EdgeStrategy::onDataSatisfied( const ndn::Data& data, const ndn::Interest& inter
     // internet into the consumer network
     if( data.getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK
       && data.getNoReCacheFlag() )
+    {
         m_positive_cache.insert( interest.getAuthTag() );
+        logPositiveCacheInsert( interest.getAuthTag(), "data satisfied" );
+    }
     
     RouterStrategy::onDataSatisfied( data, interest );
+}
+
+void
+EdgeStrategy::logAuthValidityProbSet( const ndn::Interest& interest,
+                                      uint32_t prob,
+                                      const std::string& why ) const
+{
+  if( !shouldLogAuthValidityProbSet() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Edge",
+                            "{ 'interest-name' : $interest_name, "
+                            "  'prob'          : $prob, "
+                            "  'why'           : $why, "
+                            "  'what'          : $what, "
+                            "  'who'           : $who  }" );
+  log->set( "interest_name", interest.getName().toUri() );
+  log->set( "prob", (int64_t) prob );
+  log->set( "why", why );
+  log->set( "what", string("AuthValidityProbSet") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+void
+EdgeStrategy::logPositiveCacheInsert( const ndn::AuthTag& auth,
+                                      const std::string& why ) const
+{
+  if( !shouldLogPositiveCacheInsert() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Edge",
+                            "{ 'auth-prefix'  : $auth_prefix, "
+                            "  'route-hash'   : $route_hash, "
+                            "  'access-level' : $access_level, "
+                            "  'why'          : $why, "
+                            "  'what'         : $what, "
+                            "  'who'          : $who  }" );
+  log->set( "auth_name", auth.getPrefix().toUri() );
+  log->set( "route_hash", (int64_t)auth.getRouteHash() );
+  log->set( "access_level", (int64_t)auth.getAccessLevel() );
+  log->set( "why", why );
+  log->set( "what", string("PositiveCacheInsert") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+void
+EdgeStrategy::logNegativeCacheInsert( const ndn::AuthTag& auth,
+                                      const std::string& why ) const
+{
+  if( !shouldLogNegativeCacheInsert() )
+      return;
+  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
+                            "Edge",
+                            "{ 'auth-prefix'  : $auth_prefix, "
+                            "  'route-hash'   : $route_hash, "
+                            "  'access-level' : $access_level, "
+                            "  'why'          : $why, "
+                            "  'what'         : $what, "
+                            "  'who'          : $who  }" );
+  log->set( "auth_name", auth.getPrefix().toUri() );
+  log->set( "route_hash", (int64_t)auth.getRouteHash() );
+  log->set( "access_level", (int64_t)auth.getAccessLevel() );
+  log->set( "why", why );
+  log->set( "what", string("NegativeCacheInsert") );
+  log->set( "who", (int64_t)m_instance_id );
+  log->write();
+}
+
+bool
+EdgeStrategy::shouldLogAuthValidityProbSet( void ) const
+{
+    return false;
+}
+
+bool
+EdgeStrategy::shouldLogPositiveCacheInsert( void ) const
+{
+    return false;
+}
+
+bool
+EdgeStrategy::shouldLogNegativeCacheInsert( void ) const
+{
+    return false;
 }
 
 

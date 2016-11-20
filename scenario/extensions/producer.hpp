@@ -22,6 +22,7 @@
 #include "ndn-cxx/auth-tag.hpp"
 #include "ndn-cxx/encoding/tlv.hpp"
 #include "auth-cache.hpp"
+#include "unqlite.hpp"
 #include <memory>
 
 
@@ -33,69 +34,70 @@ namespace ndntac
   class Producer : public ns3::ndn::App
   {
     public:
-      static ns3::TypeId
-      GetTypeId();
+          static ns3::TypeId
+          GetTypeId();
 
-      Producer();
+          Producer();
 
-      void
-      OnInterest( std::shared_ptr< const ndn::Interest> interest ) override;
+          void
+          OnInterest
+         ( std::shared_ptr< const ndn::Interest> interest ) override;
 
     protected:
-      void
-      StartApplication() override;
-      void
-      StopApplication() override;
-      
-      void
-      logDataDenied( const ndn::Data& data,
-                     const ndn::AuthTag& auth,
-                     const std::string& why ) const;
-      void
-      logDataDenied( const ndn::Data& data,
-                     const std::string& why ) const;
-      void
-      logDataSent( const ndn::Data& data,
-                   const ndn::AuthTag& auth ) const;
-      void
-      logDataSent( const ndn::Data& data ) const;
-      void
-      logNoReCacheFlagSet( const ndn::Data& data,
-                           const ndn::Interest& interest ) const;
-
-      void
-      logSentAuth( const ndn::AuthTag& auth ) const;
-      
-      void
-      logReceivedRequest( const ndn::Interest& interest ) const;
-      
-      void
-      logProducerStart( void ) const;
+          void
+          StartApplication() override;
+          void
+          StopApplication() override;
 
     private:
 
-     void
-     onDataRequest( std::shared_ptr< const ndn::Interest > interest );
-     
-     void
-     onAuthRequest( std::shared_ptr< const ndn::Interest > interest );
-     
-     void
-     toNack( ndn::Data& data );
+         virtual void
+         onDataRequest
+         ( std::shared_ptr< const ndn::Interest > interest );
+         
+         virtual void
+         onAuthRequest
+         ( std::shared_ptr< const ndn::Interest > interest );
+         
+         virtual void
+         toNack( ndn::Data& data );
 
     private:
-            TxQueue m_queue;
-            string m_names_string;
-            std::map<ndn::Name, std::pair< size_t, uint8_t >> m_names;
-            ndn::Name m_prefix;
-            uint32_t m_instance_id;
 
-            static uint32_t s_instance_id;
-            static const ns3::Time s_producer_signature_delay;
-            static const ns3::Time s_producer_bloom_delay;
-            static const ns3::Time s_producer_interest_delay;
+        TxQueue m_tx_queue;
+        uint32_t m_instance_id;
+        static uint32_t s_instance_id;
+        
+        struct Config
+        {
+            // load config from file
+            Config( const std::string& file, uint32_t id );
+            
+            // producer's content
+            struct Content
+            { size_t size;
+              uint8_t access_level; };
+            std::map
+            < ndn::Name, Content > contents;
+            
+            // producer prefix
+            ndn::Name prefix;
+            
+            // delay for each signature verification
+            ns3::Time sigverif_delay;
+            
+            // delay for each bloom loockup
+            ns3::Time bloom_delay;
+            
+            // base delay for processing each request
+            // without signature or bloom loockup overhead
+            ns3::Time request_delay;
+        };
+        Config  m_config;
+        
     public:
             static const size_t s_segment_size;
+            static std::string s_config;
     };
 
 };

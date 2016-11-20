@@ -71,7 +71,9 @@ private:
     **/
     Logger( const std::string& dbname )
     {
-        int rc = unqlite_open( &m_db, dbname.c_str(), UNQLITE_OPEN_CREATE );
+        int rc = unqlite_open( &m_db, dbname.c_str(),
+                               UNQLITE_OPEN_CREATE
+                               | UNQLITE_OPEN_OMIT_JOURNALING );
         if( rc != UNQLITE_OK ) 
             throw std::runtime_error( "Error opening database file" );
     }
