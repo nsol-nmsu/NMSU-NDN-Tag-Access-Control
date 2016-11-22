@@ -64,15 +64,15 @@ private:
     
     // start
     void
-    StartApplication( void );
+    StartApplication( void ) override;
     
     // stop
     void
-    StopApplication( void );
+    StopApplication( void ) override;
     
     // called when we recieve a data packet
     void
-    OnData( std::shared_ptr< const ndn::Data > data );
+    OnData( std::shared_ptr< const ndn::Data > data ) override;
     
     // called when the requested data is received
     void
@@ -203,6 +203,9 @@ private:
         
         // retransmission timeout
         ns3::Time retx_timeout;
+        
+        // did the request have valid authentication
+        bool valid_auth;
     };
     std::map< uint32_t, PendingEntry > m_pending;
     
@@ -241,43 +244,6 @@ private:
     // exponential random variable to use for
     // gap selection
     ns3::Ptr< ns3::ExponentialRandomVariable > m_erng;
-    
-    
-    // trace the number of interests sent, not including
-    // retransmissions
-    ns3::TracedValue< uint32_t > m_interest_trace;
-    
-    // trace the number of datas received
-    ns3::TracedValue< uint32_t > m_data_trace;
-    
-    // trace number of denied interests
-    ns3::TracedValue< uint32_t > m_denied_trace;
-    
-    // trace number of datas denied for valid auth tag
-    ns3::TracedValue< uint32_t > m_deserved_trace;
-    
-    // trace the number of datas received for invalid tag
-    ns3::TracedValue< uint32_t > m_undeserved_trace;
-    
-    // trace the number of unrequested datas that we receive
-    ns3::TracedValue< uint32_t > m_unrequested_trace;
-    
-    // trace the number of auth tags used
-    ns3::TracedValue< uint32_t > m_auth_trace;
-    
-    // trace the total number of interest retransmissions
-    ns3::TracedValue< uint32_t > m_retx_trace;
-    
-    // trace number of timeouts
-    ns3::TracedValue< uint32_t > m_timeout_trace;
-    
-    // trace the average delay between last retx
-    // and data receipt
-    ns3::TracedValue< ns3::Time > m_partial_delay_trace;
-
-    // trace the average delay between the first request
-    // for an interest and its receipt
-    ns3::TracedValue< ns3::Time > m_total_delay_trace;
     
     // instance tracker
     static uint32_t s_instance_id;

@@ -16,8 +16,8 @@
 #include "consumer.hpp"
 #include "router-strategy.hpp"
 #include "edge-strategy.hpp"
-#include "pconfig-reader.hpp"
 #include "include-only-once.hpp"
+#include "is-edge-flag.hpp"
 
 #include "unqlite.hpp"
 
@@ -39,11 +39,10 @@ struct Config
     
     unsigned nproducers; // number of producers to generate
     unsigned nconsumers; // number of consumers to generate
-    unsigned nsubnets;   // number of subnets to generate
-    unsigned nedges;     // number of edge routers to select
+    unsigned nproducer_edges; // number of producer edge routers
+    unsigned nconsumer_edges; // number of consumer edge rotuers
     
     string network_config;  // BRITE config file for generating network
-    string subnet_config;   // BRITE config file for generating subnets
     string producer_config; // config file for producers
     string consumer_config; // config file for consumrs
     string router_config;   // config file for routers
@@ -104,6 +103,7 @@ struct Config
     
     // enable a trace that keeps track of the total
     // number of interest and data packets transmitted
+    // and their accumulative byte count
     bool enable_transmission_trace;
     // the interval for the above
     Time transmission_trace_interval;
@@ -123,7 +123,7 @@ makeTopo
   NodeContainer& producers_out,
   NodeContainer& consumers_out,
   NodeContainer& routers_out,
-  NodeContainer& edges_out );
+  NodeContainer& edge_out );
 
 int main( int argc, char* argv[] )
 {
@@ -143,6 +143,7 @@ int main( int argc, char* argv[] )
               consumer_nodes,
               router_nodes,
               edge_nodes );
+
     
     // initialize and install universal helpers
     StackHelper ndn_helper;
@@ -160,15 +161,32 @@ int main( int argc, char* argv[] )
     AppHelper consumer_app( "ndntac::Consumer" );
     consumer_app.Install( consumer_nodes );
     
-    // install router strategy on all nodes except edge routers
+    // install router strategy on router nodes in the main network
     RouterStrategy::s_config = config.router_config;
     StrategyChoiceHelper::Install<RouterStrategy>( router_nodes, "/" );
-    StrategyChoiceHelper::Install<RouterStrategy>( producer_nodes, "/" );
-    StrategyChoiceHelper::Install<RouterStrategy>( consumer_nodes, "/" );
     
     // edge routers get the edge strategy
     EdgeStrategy::s_config = config.edge_config;
     StrategyChoiceHelper::Install<EdgeStrategy>( edge_nodes, "/" );
+    
+    // install best route strategy on producer and consumer nodes
+    StrategyChoiceHelper::Install<::nfd::fw::BestRouteStrategy>( producer_nodes, "/" );
+    StrategyChoiceHelper::Install<::nfd::fw::BestRouteStrategy>( consumer_nodes, "/" );
+
+    // add origins for producers
+    for( auto it = producer_nodes.Begin()
+       ; it != producer_nodes.end()
+       ; it++ )
+    {
+        uint32_t napps = (*it)->GetNApplications();
+        for( uint32_t i = 0 ; i < napps ; i++ )
+        {
+            auto app = (*it)->GetApplication( i );
+            NameValue val;
+            app->GetAttribute( "Prefix", val );
+            routing_helper.AddOrigins( val.Get().toUri(), *it );
+        }
+    }
 
     // configure routes
     GlobalRoutingHelper::CalculateRoutes();
@@ -189,14 +207,13 @@ Config::Config( const string& file  )
     // file provides them
     nproducers = 10;
     nconsumers = 10;
-    nsubnets   = 5;
-    nedges     = 5;
-    network_config  = "network_config.brite";
-    subnet_config   = "subnet_config.brite";
-    producer_config = "producer_config.jx9";
-    consumer_config = "consumer_config.jx9";
-    router_config   = "router_config.jx9";
-    edge_config     = "edge_config.jx9";
+    nproducer_edges = 5;
+    nconsumer_edges  = 5;
+    network_config  = "config/network_config.brite";
+    producer_config = "config/producer_config.jx9";
+    consumer_config = "config/consumer_config.jx9";
+    router_config   = "config/router_config.jx9";
+    edge_config     = "config/edge_config.jx9";
     simulation_time = Seconds( 10 );
     enable_tags_created_trace   = false;
     tags_created_trace_interval = Seconds(10);
@@ -272,9 +289,13 @@ Config::Config( const string& file  )
     if( val && unqlite_value_is_int( val ) )
         nconsumers = unqlite_value_to_int64( val );
     
-    val = unqlite_vm_extract_variable( vm, "nedges" );
+    val = unqlite_vm_extract_variable( vm, "nproducer_edges" );
     if( val && unqlite_value_is_int( val ) )
-        nedges = unqlite_value_to_int64( val );
+        nproducer_edges = unqlite_value_to_int64( val );
+
+    val = unqlite_vm_extract_variable( vm, "nconsumer_edges" );
+    if( val && unqlite_value_is_int( val ) )
+        nconsumer_edges = unqlite_value_to_int64( val );
     
     const char* str_val;
     int str_len;
@@ -284,13 +305,6 @@ Config::Config( const string& file  )
     {
        str_val = unqlite_value_to_string( val, &str_len );
        network_config.assign( str_val, str_len );
-    }
-    
-    val = unqlite_vm_extract_variable( vm, "subnet_config" );
-    if( val && unqlite_value_is_string( val ) )
-    {
-       str_val = unqlite_value_to_string( val, &str_len );
-       subnet_config.assign( str_val, str_len );
     }
     
     val = unqlite_vm_extract_variable( vm, "producer_config" );
@@ -338,6 +352,11 @@ Config::Config( const string& file  )
         tags_created_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
     }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        tags_created_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
+    }
     
     
     val = unqlite_vm_extract_variable
@@ -352,6 +371,11 @@ Config::Config( const string& file  )
     {
         tags_active_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
+    }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        tags_active_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
     }
     
     
@@ -368,7 +392,11 @@ Config::Config( const string& file  )
         tag_sigverif_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
     }
-    
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        tag_sigverif_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
+    }
     
     val = unqlite_vm_extract_variable
           ( vm, "enable_tag_bloom_trace" );
@@ -382,6 +410,11 @@ Config::Config( const string& file  )
     {
         tag_bloom_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
+    }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        tag_bloom_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
     }
     
     
@@ -398,6 +431,11 @@ Config::Config( const string& file  )
         overhead_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
     }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        overhead_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
+    }
     
     val = unqlite_vm_extract_variable
           ( vm, "enable_drop_trace" );
@@ -411,6 +449,11 @@ Config::Config( const string& file  )
     {
         drop_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
+    }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        drop_trace_interval = 
+            Seconds( unqlite_value_to_int64( val ) );
     }
     
     
@@ -427,6 +470,11 @@ Config::Config( const string& file  )
         validation_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
     }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        validation_trace_interval =
+            Seconds( unqlite_value_to_int64( val ) );
+    }
     
     
     val = unqlite_vm_extract_variable
@@ -441,6 +489,11 @@ Config::Config( const string& file  )
     {
         transmission_trace_interval =
             Seconds( unqlite_value_to_double( val ) );
+    }
+    else if( val && unqlite_value_is_int( val ) )
+    {
+        transmission_trace_interval =
+            Seconds( unqlite_value_to_int64( val ) );
     }
     
     // release the vm
@@ -469,7 +522,8 @@ makeCluster
         size_t node_count = brite_helper.GetNNodesForAs( as_num );
         for( size_t node_num = 0 ; node_num < node_count ; node_num++ )
         {
-            Ptr<Node> node = brite_helper.GetNodeForAs( as_num, node_num );
+            Ptr<Node> node = brite_helper.GetNodeForAs
+                                          ( as_num, node_num );
             out.Add( node );
         }
     }
@@ -487,99 +541,86 @@ makeTopo
     PointToPointHelper p2p_helper;
     InternetStackHelper internet_helper;
     
-    // for a proper topology to be generater certain conditions
+    // for a proper topology to be generated certain conditions
     // must be met in the settings
-    BOOST_ASSERT( config.nedges > 0 );
     BOOST_ASSERT( config.nproducers > 0 );
     BOOST_ASSERT( config.nconsumers > 0 );
-    BOOST_ASSERT( config.nsubnets > 0 );
+    BOOST_ASSERT( config.nproducer_edges > 0 );
+    BOOST_ASSERT( config.nconsumer_edges > 0 );
     
     // generate the main cluster
     NodeContainer main_network;
-    makeCluster( p2p_helper, internet_helper, main_network, config.network_config );
+    makeCluster( p2p_helper, internet_helper,
+                 main_network, config.network_config );
     
-    // edge routers ill be selected from amongst the
-    // main_network nodes; so the container must have
-    // nodes >= nedges
-    BOOST_ASSERT( main_network.GetN() >= config.nedges );
+    // edges will be selected from among the main network
+    // so we need to make sure it has enough nodes
+    BOOST_ASSERT( main_network.GetN() >= config.nproducer_edges
+                                        + config.nconsumer_edges );
     
-    // generate nedges unique random indexes for the
-    // main network node container
-    std::set<size_t> rnums;
-    while( rnums.size() < config.nedges )
+    // choose some random unique indexes for
+    // selecting edge routers from main_network
+    set<uint32_t> rnums;
+    while( rnums.size() < config.nproducer_edges
+                          + config.nconsumer_edges )
     {
-        rnums.insert( rand() % main_network.GetN() );
+        rnums.insert( (uint32_t)rand() % main_network.GetN() );
     }
     
-    
-    // partition main network into edge routers and normal
-    // routers
-    for( size_t i = 0 ; i < main_network.GetN() ; i++ )
+    // add the chosen routers to edges_out
+    // and all others to routers_out
+    NodeContainer producer_edges;
+    NodeContainer consumer_edges;
+    for( uint32_t i = 0 ; i < main_network.GetN() ; i++ )
     {
-        if( rnums.find( i ) != rnums.end() )
-            edges_out.Add( main_network.Get( i ) );
+        auto it = rnums.find( i );
+        if( it != rnums.end() )
+        {
+            rnums.erase( it );
+            if( producer_edges.GetN() < config.nproducer_edges )
+                producer_edges.Add( main_network.Get( i ) );
+            else
+                consumer_edges.Add( main_network.Get( i ) );
+        }
         else
+        {
             routers_out.Add( main_network.Get( i ) );
+        }
     }
+    edges_out.Add( producer_edges );
+    edges_out.Add( consumer_edges );
     
-    // generate some subnetworks
-    NodeContainer subnet_nodes;
-    for( size_t i = 0 ; i < config.nsubnets ; i++ )
+    // make some producers
+    producers_out.Create( config.nproducers );
+    for( auto it = producers_out.begin()
+       ; it != producers_out.end()
+       ; it++ )
     {
-        // generate cluster
-        NodeContainer subnet;
-        makeCluster( p2p_helper, internet_helper, subnet, config.subnet_config );
+        // link producers to random edges
+        size_t graft_edge = rand() % producer_edges.GetN();
+        auto devs = p2p_helper.Install
+                    ( *it, producer_edges.Get( graft_edge ) );
+        devs.Get( 1 )
+        ->AggregateObject( CreateObject<ndntac::IsEdgeFlag>() );
         
-        // add nodes to subnet collection
-        subnet_nodes.Add( subnet );
+    }
+    internet_helper.Install( producers_out );
+    
+    // make some consumers
+    consumers_out.Create( config.nconsumers );
+    for( auto it = consumers_out.begin()
+       ; it != consumers_out.end()
+       ; it++ )
+    {
+        // link consumers to random edges
+        size_t graft_edge = rand() % consumer_edges.GetN();
+        auto devs = p2p_helper.Install
+                    ( *it, consumer_edges.Get( graft_edge ) );
+        devs.Get( 1 )
+        ->AggregateObject( CreateObject<ndntac::IsEdgeFlag>() );
         
-        // graft the subnet onto the main network via
-        // one of the edge routers
-        size_t graft_edge = rand() % edges_out.GetN();
-        p2p_helper.Install( subnet.Get( 0 ), edges_out.Get( graft_edge ) );
     }
-    
-    // number of subnet nodes must be >= nproducers + nconsumers
-    // since the producer and consumer nodes will be selected
-    // from amongst the subnet nodes
-    BOOST_ASSERT( subnet_nodes.GetN() >= config.nproducers + config.nconsumers );
-    
-    // generate some random unique consumer indexes for the
-    // subnet_nodes collection
-    rnums.clear();
-    while( rnums.size() < config.nconsumers )
-    {
-        rnums.insert( rand() % subnet_nodes.GetN() );
-    }
-    
-    // generate some random unique producer indexes for the 
-    // subnet_nodes container; these'll be different from the
-    // consumer indexes
-    std::set<size_t> rnums2;
-    while( rnums2.size() < config.nproducers )
-    {
-        size_t num = rand() % subnet_nodes.GetN();
-        if( rnums.find( num ) != rnums.end() )
-            rnums2.insert( num );
-    }
-    
-    // partition consumer, producer, and router nodes
-    // in the subnets
-    for( size_t i = 0 ; i < subnet_nodes.GetN() ; i++ )
-    {
-        if( rnums.find( i ) != rnums.end() )
-        {
-            consumers_out.Add( subnet_nodes.Get( i ) );
-        }
-        else if( rnums2.find( i ) != rnums2.end() )
-        {
-            producers_out.Add( subnet_nodes.Get( i ) );
-        }
-        else
-        {
-            routers_out.Add( subnet_nodes.Get( i ) );
-        }
-    }
+    internet_helper.Install( consumers_out );
     
     // finished
 }

@@ -44,14 +44,17 @@ namespace ndntac
       virtual void
       onDataDenied( const ndn::Data& data,
                     const ndn::Interest& interest,
+                    ns3::Time& delay,
                     const std::string& why );
       virtual void
       onDataSatisfied( const ndn::Data& data,
-                       const ndn::Interest& interest );
+                       const ndn::Interest& interest,
+                       ns3::Time& delay );
       
       virtual void
       onDataPreserved( const ndn::Data& data,
-                       const ndn::Interest& interest );
+                       const ndn::Interest& interest,
+                       ns3::Time& delay );
       
       virtual void
       onInterestDropped( const ndn::Interest& interest,
@@ -66,46 +69,6 @@ namespace ndntac
       
       virtual void
       toPreserve( ndn::Data& data, const ndn::Interest& interest );
-
-      virtual void
-      logDataDenied( const ndn::Data& data,
-                     const ndn::AuthTag& auth,
-                     const std::string& why ) const;
-      virtual void
-      logDataDenied( const ndn::Data& data,
-                     const std::string& why ) const;
-      virtual void
-      logDataSent( const ndn::Data& data,
-                   const ndn::AuthTag& auth ) const;
-      virtual void
-      logDataSent( const ndn::Data& data ) const;
-      
-      virtual void
-      logNoReCacheFlagSet( const ndn::Data& data,
-                           const ndn::Interest& interest ) const;
-      
-      virtual void
-      logInterestSent( const ndn::Interest& interest ) const;
-      
-      virtual void
-      logInterestDropped( const ndn::Interest& interest,
-                          const std::string& why ) const;
-      
-      virtual bool
-      shouldLogDataDenied( void ) const;
-      
-      virtual bool
-      shouldLogDataSent( void ) const;
-      
-      virtual bool
-      shouldLogNoReCacheFlagSet( void ) const;
-      
-      virtual bool
-      shouldLogInterestSent( void ) const;
-      
-      virtual bool
-      shouldLogInterestDropped( void ) const;
-       
 
     public:
        static std::string s_config;

@@ -3,6 +3,7 @@
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 #include <sstream>
 #include <boost/regex.hpp>
+#include "tracers.hpp"
 
 extern "C"
 {
@@ -34,7 +35,12 @@ Producer::GetTypeId()
       static ns3::TypeId tid
           = ns3::TypeId("ndntac::Producer")
             .SetParent<ns3::ndn::App>()
-            .AddConstructor<Producer>();
+            .AddConstructor<Producer>()
+            .AddAttribute( "Prefix",
+                           "Producer prefix",
+                           NameValue( "/" ),
+                           MakeNameAccessor( &Producer::GetPrefix ),
+                           MakeNameChecker() );
       return tid;
 }
 
@@ -42,6 +48,12 @@ Producer::Producer()
     : m_instance_id( s_instance_id++ )
     , m_config( s_config, m_instance_id )
 {
+}
+
+const Name&
+Producer::GetPrefix( void ) const
+{
+    return m_config.prefix;
 }
 
 void
@@ -111,13 +123,19 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // if data access level is 0 then forward without authentication
   if( data->getAccessLevel() == 0 )
   {
+    tracers::producer->validation
+    ( tracers::ValidationSuccessSkipped );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
   }
   
   // interests without tags are refused
   if( !interest->hasAuthTag() )
   {
+    tracers::producer->validation
+    ( tracers::ValidationFailureNoAuth );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
@@ -128,7 +146,10 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // tags with invalid access level are refused
   if( access_level > tag.getAccessLevel() )
   {
+    tracers::producer->validation
+    ( tracers::ValidationFailureLowAuth );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
@@ -136,7 +157,11 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   //interests with expired tags are refused
   if( tag.isExpired() )
   {
+    
+    tracers::producer->validation
+    ( tracers::ValidationFailureExpired );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
@@ -144,7 +169,10 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // tags with wrong prefixes are refused
   if( !tag.getPrefix().isPrefixOf( data->getName() ) )
   {
+    tracers::producer->validation
+    ( tracers::ValidationFailureBadPrefix );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
@@ -152,13 +180,19 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // tags with non matching key locators are refused
   if( !data->getSignature().hasKeyLocator() )
   {
+    tracers::producer->validation
+    ( tracers::ValidationFailureBadKeyLoc );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
   if( tag.getKeyLocator() != data->getSignature().getKeyLocator() )
   {
+    tracers::producer->validation(
+     tracers::ValidationFailureBadKeyLoc );
     toNack( *data );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
@@ -174,16 +208,24 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // adding delay to the transmit queue, signature is valid if it
   // isn't equal to DUMMY_BAD_SIGNATURE, which has 0 as its first
   // byte
+  tracers::producer->sigverif
+  ( tag, m_config.sigverif_delay );
   m_tx_queue.delay( m_config.sigverif_delay );
   if( tag.getSignature().getValue().value_size() > 0
       && tag.getSignature().getValue().value()[0] != 0 )
   {
+    tracers::producer->validation
+    ( tracers::ValidationSuccessSig );
+    tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
 
   // signature was invalid
+  tracers::producer->validation
+  ( tracers::ValidationFailureSig );
   toNack( *data );
+  tracers::producer->sent_data( *data );
   m_tx_queue.receiveData( m_face, data );
 }
 
@@ -195,6 +237,7 @@ Producer::onAuthRequest( shared_ptr< const Interest > interest )
   uint64_t route_hash = interest->getEntryRoute();
 
   AuthTag tag;
+  tracers::producer->tag_created( tag );
   tag.setPrefix( m_config.prefix );
   tag.setAccessLevel( 3 );
   tag.setActivationTime( ::ndn::time::system_clock::now()
@@ -222,6 +265,7 @@ Producer::onAuthRequest( shared_ptr< const Interest > interest )
   BOOST_ASSERT( data->getCurrentNetwork()
               ==  RouteTracker::EXIT_NETWORK );
   
+  tracers::producer->sent_data( *data );
   m_tx_queue.receiveData( m_face, data );
 }
 
@@ -232,10 +276,9 @@ Producer::OnInterest( shared_ptr< const Interest > interest )
   BOOST_ASSERT( interest->getCurrentNetwork()
               == RouteTracker::EXIT_NETWORK );
 
-  // every interest takes some amount of processing time
-  // for now we simulate this with a constant delay
-  m_tx_queue.delay( m_config.request_delay );
-  
+  tracers::producer->received_interest
+  ( *interest );
+
   if( interest->getName().getPrefix( m_config.prefix.size() )
     == m_config.prefix )
   {
@@ -275,7 +318,6 @@ Producer::Config::Config( const string& file, uint32_t id )
     prefix = Name("unnamed");
     sigverif_delay = NanoSeconds( 30345 );
     bloom_delay    = NanoSeconds( 2535 );
-    request_delay = NanoSeconds( 0 );
     
     // database and vm structs
     unqlite* db;
@@ -347,7 +389,7 @@ Producer::Config::Config( const string& file, uint32_t id )
     unqlite_value* val;
     
     val = unqlite_vm_extract_variable( vm, "prefix" );
-    if( val && unqlite_value_is_string( val ) )
+    if( val )
     {
         str = unqlite_value_to_string( val, &len );
         prefix = string(str, len );
@@ -356,23 +398,23 @@ Producer::Config::Config( const string& file, uint32_t id )
     val = unqlite_vm_extract_variable( vm, "sigverif_delay" );
     if( unqlite_value_is_float( val ) )
         sigverif_delay = Seconds( unqlite_value_to_double( val ) );
+    if( unqlite_value_is_int( val ) )
+        sigverif_delay = Seconds( unqlite_value_to_int64( val ) );
 
     val = unqlite_vm_extract_variable( vm, "bloom_delay" );
     if( unqlite_value_is_float( val ) )
        bloom_delay = Seconds( unqlite_value_to_double( val ) );
-        
-    val = unqlite_vm_extract_variable( vm, "request_delay" );
-    if( unqlite_value_is_float( val ) )
-        request_delay = Seconds( unqlite_value_to_double( val ) );
+    if( unqlite_value_is_int( val ) )
+        bloom_delay = Seconds( unqlite_value_to_int64( val ) );
  
     val = unqlite_vm_extract_variable( vm, "contents" );
     if( val && unqlite_value_is_json_array( val ) )
     {
         size_t count = unqlite_array_count( val );
-        stringstream ss;
-        string key;
         for( size_t i = 0 ; i < count ; i++ )
         {
+            stringstream ss;
+            string key;
             ss << i;
             ss >> key;
             unqlite_value* elem = unqlite_array_fetch

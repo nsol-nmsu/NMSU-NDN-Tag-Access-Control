@@ -1,1 +1,73 @@
-$nproducers = 10
+$nproducers = 1;
+$nconsumers = 50;
+$nproducer_edges = 5;
+$nconsumer_edges = 5;
+$network_config = "config/network_config.brite";
+$subnet_config = "config/subnet_config.brite";
+$producer_config = "config/producer_config.jx9";
+$consumer_config = "config/consumer_config.jx9";
+$router_config = "config/router_config.jx9";
+$edge_config = "config/edge_config.jx9";
+
+$enable_tags_created_trace = true;
+$tags_created_trace_interval = 10;
+$enable_tags_active_trace = true;
+$tags_active_trace_interval = 10;
+$enable_tag_sigverif_trace = true;
+$tag_sigverif_trace_interval = 10;
+$enable_tag_bloom_trace = true;
+$tag_bloom_trace_interval = 10;
+$enable_overhead_trace = true;
+$overhead_trace_interval = 10;
+$enable_drop_trace = true;
+$drop_trace_interval = 10;
+$enable_validation_trace = true;
+$validation_trace_interval = 10;
+$enable_transmission_trace = true;
+$transmission_trace_interval = 10;
+
+function zipf( int $rank, int $N, float $q, float $s )
+{
+    $H = 0;
+    for( $i = 1 ; $i <= $N ; $i++ )
+    {
+        $H += 1/pow( $i + $q, $s );
+    }
+    
+    $val = ( 1/pow( $rank + $q, $s ) )/$H;
+    return $val;
+}
+
+$contents_per_producer = 500;
+function producer_contents( int $producer )
+{
+    uplink $contents_per_producer;
+    
+    $contents = [];
+    for( $i = 0 ; $i < $contents_per_producer ; $i++ )
+    {
+        $contents[$i] =
+            { name : "content$i", size : 1024, access_level : 2 };
+    }
+    
+    return $contents;
+}
+
+$contents_per_consumer = 200;
+function consumer_contents( int $consumer )
+{
+    uplink $contents_per_consumer, $contents_per_producer;
+    
+    print "contents to generate $contents_per_consumer\n";
+    $contents = [];
+    for( $i = 0 ; $i < $contents_per_consumer ; $i++ )
+    {
+        $producer = rand() % $nproducers;
+        $rank = rand() % $contents_per_producer;
+        $contents[$i] =
+            { name : "$producer/content$rank",
+              prob : zipf( $rank, $contents_per_producer, 0.7, 0.7 ) };
+    }
+    return $contents;
+}
+

@@ -57,12 +57,14 @@ Interest::Interest(const Block& wire)
 
 Interest::Interest( const Interest& other )
 {
+    m_localControlHeader = other.getLocalControlHeader();
     wireDecode( other.wireEncode() );
 }
 
 Interest&
 Interest::operator=( const Interest& other )
 {
+    m_localControlHeader = other.getLocalControlHeader();
     wireDecode( other.wireEncode() );
     return *this;
 }

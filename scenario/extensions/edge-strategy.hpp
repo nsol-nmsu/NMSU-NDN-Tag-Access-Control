@@ -48,39 +48,18 @@ namespace ndntac
       void
       onDataDenied( const ndn::Data& data,
                     const ndn::Interest& interest,
+                    ns3::Time& delay,
                     const std::string& why ) override;
       void
       onDataSatisfied( const ndn::Data& data,
-                       const ndn::Interest& interest ) override;
+                       const ndn::Interest& interest,
+                       ns3::Time& delay ) override;
       
       void
       toNack( ndn::Data& data, const ndn::Interest& interest ) override;
 
-    protected: // logging
-        
-      virtual void
-      logAuthValidityProbSet( const ndn::Interest& interest,
-                              uint32_t prob,
-                              const std::string& why ) const;
-      
-      virtual void
-      logPositiveCacheInsert( const ndn::AuthTag& auth,
-                              const std::string& why ) const;
-      
-      virtual void
-      logNegativeCacheInsert( const ndn::AuthTag& auth,
-                              const std::string& why ) const;
-      
-      virtual bool
-      shouldLogAuthValidityProbSet( void ) const;
-      
-      virtual bool
-      shouldLogPositiveCacheInsert( void ) const;
-      
-      virtual bool
-      shouldLogNegativeCacheInsert( void ) const; 
-      
-      
+      void
+      toPreserve( ndn::Data& data, const ndn::Interest& interest ) override;  
 
     public:
        static std::string s_config;

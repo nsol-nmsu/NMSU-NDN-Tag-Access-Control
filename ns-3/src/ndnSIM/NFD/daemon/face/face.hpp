@@ -22,6 +22,18 @@
  * You should have received a copy of the GNU General Public License along with
  * NFD, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  */
+ 
+ /**
+ * This file has been modified by Ray Stubbs [stubbs.ray@gmail.com]
+ * to add functionality for a specific simulation.  Namely
+ * the m_isEdge flag and accessors.  This is for the 
+ * NDNTAC simulation an indicates that the face connects an edge
+ * router to its charges. Packets coming through an edge face to
+ * an edge router are leaving a local network that the edge is
+ * in charge of and entering the edge's network.  And packets
+ * sent through an edge face from the edge router are leaving
+ * the edge's network to a local network.
+ **/
 
 #ifndef NFD_DAEMON_FACE_FACE_HPP
 #define NFD_DAEMON_FACE_FACE_HPP
@@ -83,7 +95,8 @@ public:
   };
 
   Face(const FaceUri& remoteUri, const FaceUri& localUri,
-       bool isLocal = false, bool isMultiAccess = false);
+       bool isLocal = false, bool isEdge = false,
+       bool isMultiAccess = false );
 
   virtual
   ~Face();
@@ -150,6 +163,11 @@ public: // attributes
    */
   bool
   isLocal() const;
+  
+  /** \brief Return true if this face is an edge face
+  */
+  bool
+  isEdge( void ) const;
 
   /** \brief Get the persistency setting
    */
@@ -220,6 +238,7 @@ private:
   const FaceUri m_remoteUri;
   const FaceUri m_localUri;
   const bool m_isLocal;
+  const bool m_isEdge;
   ndn::nfd::FacePersistency m_persistency;
   const bool m_isMultiAccess;
   bool m_isFailed;
@@ -257,6 +276,12 @@ inline bool
 Face::isLocal() const
 {
   return m_isLocal;
+}
+
+inline bool
+Face::isEdge( void ) const
+{
+    return m_isEdge;
 }
 
 inline ndn::nfd::FacePersistency

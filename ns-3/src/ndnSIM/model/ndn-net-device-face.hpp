@@ -51,7 +51,7 @@ public:
    * @param netDevice a smart pointer to NetDevice object to which
    * this face will be associate
    */
-  NetDeviceFace(Ptr<Node> node, const Ptr<NetDevice>& netDevice);
+  NetDeviceFace(Ptr<Node> node, const Ptr<NetDevice>& netDevice );
 
   virtual ~NetDeviceFace();
 

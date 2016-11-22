@@ -1,0 +1,7 @@
+$prefix = "$ID";
+$sigverif_delay = 0.000030345;
+$bloom_delay = 0.000002535;
+$request_delay = 0;
+
+include 'config/simulation_config.jx9';
+$contents = producer_contents( $ID );

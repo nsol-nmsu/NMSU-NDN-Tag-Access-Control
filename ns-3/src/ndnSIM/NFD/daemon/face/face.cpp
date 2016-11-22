@@ -29,11 +29,12 @@
 
 namespace nfd {
 
-Face::Face(const FaceUri& remoteUri, const FaceUri& localUri, bool isLocal, bool isMultiAccess)
+Face::Face(const FaceUri& remoteUri, const FaceUri& localUri, bool isLocal, bool isEdge, bool isMultiAccess )
   : m_id(INVALID_FACEID)
   , m_remoteUri(remoteUri)
   , m_localUri(localUri)
   , m_isLocal(isLocal)
+  , m_isEdge( isEdge )
   , m_persistency(ndn::nfd::FACE_PERSISTENCY_PERSISTENT)
   , m_isMultiAccess(isMultiAccess)
   , m_isFailed(false)

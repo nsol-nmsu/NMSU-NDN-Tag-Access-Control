@@ -49,6 +49,7 @@ Data::Data(const Block& wire)
 
 Data::Data( const Data& data )
 {
+    m_localControlHeader = data.getLocalControlHeader();
     wireDecode( data.wireEncode() );
 }
 
@@ -391,6 +392,7 @@ Data::onChanged()
 Data&
 Data::operator=( const Data& other )
 {
+    m_localControlHeader = other.getLocalControlHeader();
     wireDecode( other.wireEncode() );
     return *this;
 }

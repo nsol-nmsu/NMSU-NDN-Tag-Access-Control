@@ -2,8 +2,7 @@
 #include "ndn-cxx/encoding/block-helpers.hpp"
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
 #include "ndn-cxx/encoding/block-helpers.hpp"
-
-#include "logger.hpp"
+#include "tracers.hpp"
 
 namespace ndntac
 {
@@ -32,40 +31,46 @@ EdgeStrategy::filterOutgoingData
   ndn::Data& data,
   ns3::Time& delay )
 {
-    // data should never enter the internet
-    // from a consumer network
-    BOOST_ASSERT( data.getCurrentNetwork() != ndn::RouteTracker::ENTRY_NETWORK );
-        
-    // since this is an edge router, we change the
-    // data's route tracker location accordingly
-    // depending on whether the data is entering
-    // or leaving the network
-    switch( data.getCurrentNetwork() )
+    auto in_face = getFaceTable().get( data.getIncomingFaceId() );
+    bool coming_from_network = !in_face->isEdge();
+    bool going_to_network = !face.isEdge();
+    
+    // if the data is coming from and leaving to
+    // the same network  then we don't need to do
+    // anything special
+    if( coming_from_network == going_to_network )
     {
-        // data is moving from producer network into
-        // an internet network
-        case ndn::RouteTracker::EXIT_NETWORK:
-            data.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
-            
-            // data should always have exit route of zero when
-            // in the internet network
-            BOOST_ASSERT( data.getExitRoute() == 0 );
-            break;
-        // data moving from an internet network to a consumer network
-        case ndn::RouteTracker::INTERNET_NETWORK:
-            data.setCurrentNetwork( ndn::RouteTracker::ENTRY_NETWORK );
-            
-            // data should always have internet and exit route
-            // of zero when in the entry network
-            BOOST_ASSERT( data.getInternetRoute() == 0 );
-            break;
-        default:
-            //NADA
-            break;
+        return RouterStrategy::filterOutgoingData
+               ( face, interest, data, delay ); 
     }
     
-    return RouterStrategy::filterOutgoingData( face, interest,
-                                                data, delay );
+    // if the data is coming into the network then
+    // we just change its current network
+    if( going_to_network )
+    {
+        BOOST_ASSERT( data.getCurrentNetwork()
+                    == ndn::RouteTracker::EXIT_NETWORK );
+        tracers::edge->data_entered( data );
+        data.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
+        return RouterStrategy::filterOutgoingData
+               ( face, interest, data, delay ); 
+    }
+    
+    // if the data is leaving the network then we change
+    // its current network
+    if( coming_from_network )
+    {
+        BOOST_ASSERT( data.getCurrentNetwork()
+                    == ndn::RouteTracker::INTERNET_NETWORK );
+        tracers::edge->data_left( data );
+        data.setCurrentNetwork( ndn::RouteTracker::ENTRY_NETWORK );
+        return RouterStrategy::filterOutgoingData
+               ( face, interest, data, delay );
+    }
+    
+    // this should never happen
+    BOOST_ASSERT( false );
+    return true;
 }
 
 bool
@@ -74,29 +79,37 @@ EdgeStrategy::filterOutgoingInterest
   ndn::Interest& interest,
   ns3::Time& delay )
 {
-    // an interest should never enter a network from
-    // the producer network
-    BOOST_ASSERT( interest.getCurrentNetwork() != ndn::RouteTracker::EXIT_NETWORK );
-
-    // since this is an edge router, we change the
-    // interest's route tracker location accordingly
-    // depending on whether the interest is entering
-    // or leaving the network
-    switch( interest.getCurrentNetwork() )
+    auto in_face = getFaceTable().get( interest.getIncomingFaceId() );
+    bool coming_from_network = !in_face->isEdge();
+    bool going_to_network = !face.isEdge();
+    
+    // if the interest coming from and going to
+    // the same network then we don't need to do
+    // anything special
+    if( coming_from_network == going_to_network )
     {
-        // interest is moving from consumer network into
-        // an internet network
-        case ndn::RouteTracker::ENTRY_NETWORK:
-            interest.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
-            break;
-        // interest moving from an internet network to a producer network
-        case ndn::RouteTracker::INTERNET_NETWORK:
-            interest.setCurrentNetwork( ndn::RouteTracker::EXIT_NETWORK );
-            break;
-        default:
-            // NADA
-            break;
+        return RouterStrategy::filterOutgoingInterest
+               ( face, interest, delay );
     }
+    
+    // if the interest is leaving the network then just change
+    // current network
+    if( coming_from_network )
+    {
+        BOOST_ASSERT( interest.getCurrentNetwork()
+                    == ndn::RouteTracker::INTERNET_NETWORK );
+        tracers::edge->interest_left( interest );
+        interest.setCurrentNetwork( ndn::RouteTracker::EXIT_NETWORK );
+        return RouterStrategy::filterOutgoingInterest
+               ( face, interest, delay );
+    }
+    
+    // if the interest is entering the network then
+    // we need to do some extra stuff
+    BOOST_ASSERT( interest.getCurrentNetwork()
+                == ndn::RouteTracker::ENTRY_NETWORK );
+    tracers::edge->interest_entered( interest );
+    interest.setCurrentNetwork( ndn::RouteTracker::INTERNET_NETWORK );
     
     // if the interest doesn't have an auth tag, or its auth level
     // is 0 then we don't do any authentication
@@ -114,6 +127,8 @@ EdgeStrategy::filterOutgoingInterest
     // then we can drop the interest
     if( auth.isExpired() )
     {
+        tracers::edge->blocked_interest
+        ( interest, tracers::BlockedExpired );
         onInterestDropped( interest, face, "Expired auth" );
         return false;
     }
@@ -122,12 +137,16 @@ EdgeStrategy::filterOutgoingInterest
     // then we drop the interest
     if( !auth.getPrefix().isPrefixOf( interest.getName() ) )
     {
+        tracers::edge->blocked_interest
+        ( interest, tracers::BlockedBadPrefix );
         onInterestDropped( interest, face, "Mismatched prefix" );
         return false;
     }
     
     // if the interest auth is in the positive auth cache then
     // we set its auth validity probability
+    tracers::edge->bloom_lookup( auth, s_edge_bloom_delay );
+    delay += s_edge_bloom_delay;
     if( m_positive_cache.contains( auth ) )
     {
         double fpp = m_positive_cache.getEffectiveFPP();
@@ -135,16 +154,18 @@ EdgeStrategy::filterOutgoingInterest
         uint32_t iprob = prob*0xFFFFFFFF;
         interest.setAuthValidityProb( iprob );
         
-        logAuthValidityProbSet( interest, iprob, "positive cache" );
     }
     else
     {
         // if it's in the negative cache then we validate
         // its signature manually
+        tracers::edge->bloom_lookup( auth, s_edge_bloom_delay );
+        delay += s_edge_bloom_delay;
         if( m_negative_cache.contains( auth ) )
         {
             // we simulate verification delay by incrementing
             // the processing delay
+            tracers::edge->sigverif( auth, s_edge_signature_delay );
             delay += EdgeStrategy::s_edge_signature_delay;
             if( auth.getSignature().getValue().value_size() > 0
               && auth.getSignature().getValue().value()[0] != 0 )
@@ -152,11 +173,9 @@ EdgeStrategy::filterOutgoingInterest
                 // if signature is valid then set auth validity
                 // and put auth into positive cache
                 interest.setAuthValidityProb( 0xFFFFFFFF );
+                tracers::edge->auth_cached
+                ( auth, tracers::CachedPositiveMoved );
                 m_positive_cache.insert( auth );
-                
-                logAuthValidityProbSet( interest, 0xFFFFFFFF,
-                                        "negative cache, validated manually" );
-                logPositiveCacheInsert( auth, "negative cache, validated manually" );
             }
             else
             {
@@ -170,7 +189,6 @@ EdgeStrategy::filterOutgoingInterest
             // if the auth isn't in either cache then
             // we set validity probability to 0
             interest.setAuthValidityProb( 0 );
-            logAuthValidityProbSet( interest, 0, "not in cache" );
         }
     }
     
@@ -190,127 +208,108 @@ EdgeStrategy::toNack( ndn::Data& data, const ndn::Interest& interest )
 }
 
 void
-EdgeStrategy::onDataDenied( const ndn::Data& data,
-                            const ndn::Interest& interest,
-                            const std::string& why )
+EdgeStrategy::toPreserve( ndn::Data& data,
+                          const ndn::Interest& interest )
 {
+    if( data.getContentType() == ndn::tlv::ContentType_Nack )
+    {
+        data.setContent( ndn::Block() );
+        data.wireEncode();
+    }
+}
+
+void
+EdgeStrategy::onDataDenied
+( const ndn::Data& data,
+  const ndn::Interest& interest,
+  ns3::Time& delay,
+  const std::string& why )
+{
+    // if the denied data isn't leaving the network
+    // then we just do the normal router stuff
+    auto in_face = getFaceTable().get( data.getIncomingFaceId() );
+    auto out_face = getFaceTable().get( interest.getIncomingFaceId() );
+    bool coming_from_network = !in_face->isEdge();
+    bool going_to_network = !out_face->isEdge();
+    
+    if( coming_from_network == going_to_network )
+    {
+        RouterStrategy::onDataDenied( data, interest, delay, why );
+        return;
+    }
+    
+    if( going_to_network )
+    {
+        BOOST_ASSERT( data.getCurrentNetwork()
+                    == ndn::RouteTracker::INTERNET_NETWORK );
+        RouterStrategy::onDataDenied( data, interest, delay, why );
+        return;
+    }
+    
     // if the data is denied then we add the
     // tag used to retrieve it to the negative
     // cache; however we only want to do this
     // when the data is leaving the internet
     // and going into the client network
-    if( data.getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK )
+    // and the data's access level > 0
+    BOOST_ASSERT( data.getCurrentNetwork()
+                == ndn::RouteTracker::ENTRY_NETWORK );
+    if( data.getAccessLevel() > 0 )
     {
+        BOOST_ASSERT( interest.hasAuthTag() );
+        tracers::edge->bloom_insert
+        ( interest.getAuthTag(), s_edge_bloom_delay );
+        delay += s_edge_bloom_delay;
         m_negative_cache.insert( interest.getAuthTag() );
-        logNegativeCacheInsert( interest.getAuthTag(), why );
     }
-    
+
     // do whatever a normal router would do
-    RouterStrategy::onDataDenied( data, interest, why );
+    RouterStrategy::onDataDenied( data, interest, delay, why );
 }
 
 void
-EdgeStrategy::onDataSatisfied( const ndn::Data& data, const ndn::Interest& interest )
+EdgeStrategy::onDataSatisfied
+( const ndn::Data& data,
+  const ndn::Interest& interest,
+  ns3::Time& delay )
 {
+    // if the satisfied data isn't leaving the network
+    // then we just do the normal router stuff
+    auto in_face = getFaceTable().get( data.getIncomingFaceId() );
+    auto out_face = getFaceTable().get( interest.getIncomingFaceId() );
+    bool coming_from_network = !in_face->isEdge();
+    bool going_to_network = !out_face->isEdge();
+    
+    if( coming_from_network == going_to_network )
+    {
+        RouterStrategy::onDataSatisfied( data, interest, delay );
+        return;
+    }
+    
+    if( going_to_network )
+    {
+        BOOST_ASSERT( data.getCurrentNetwork()
+                    == ndn::RouteTracker::INTERNET_NETWORK );
+        RouterStrategy::onDataSatisfied( data, interest, delay );
+        return;
+    }
+    
     // if the data is satisfied then we add it to
     // the positive cache if it isn't marked with
-    // the no recache flag and it's exiting the
-    // internet into the consumer network
-    if( data.getCurrentNetwork() == ndn::RouteTracker::ENTRY_NETWORK
-      && data.getNoReCacheFlag() )
+    // the no recache flag and if its access level > 0
+    BOOST_ASSERT( data.getCurrentNetwork()
+                == ndn::RouteTracker::ENTRY_NETWORK );
+    if( !data.getNoReCacheFlag()
+      && data.getAccessLevel() > 0 )
     {
+        BOOST_ASSERT( interest.hasAuthTag() );
+        tracers::edge->bloom_insert
+        ( interest.getAuthTag(), s_edge_bloom_delay );
+        delay += s_edge_bloom_delay;
         m_positive_cache.insert( interest.getAuthTag() );
-        logPositiveCacheInsert( interest.getAuthTag(), "data satisfied" );
     }
     
-    RouterStrategy::onDataSatisfied( data, interest );
+    RouterStrategy::onDataSatisfied( data, interest, delay );
 }
-
-void
-EdgeStrategy::logAuthValidityProbSet( const ndn::Interest& interest,
-                                      uint32_t prob,
-                                      const std::string& why ) const
-{
-  if( !shouldLogAuthValidityProbSet() )
-      return;
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Edge",
-                            "{ 'interest-name' : $interest_name, "
-                            "  'prob'          : $prob, "
-                            "  'why'           : $why, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who  }" );
-  log->set( "interest_name", interest.getName().toUri() );
-  log->set( "prob", (int64_t) prob );
-  log->set( "why", why );
-  log->set( "what", string("AuthValidityProbSet") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-EdgeStrategy::logPositiveCacheInsert( const ndn::AuthTag& auth,
-                                      const std::string& why ) const
-{
-  if( !shouldLogPositiveCacheInsert() )
-      return;
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Edge",
-                            "{ 'auth-prefix'  : $auth_prefix, "
-                            "  'route-hash'   : $route_hash, "
-                            "  'access-level' : $access_level, "
-                            "  'why'          : $why, "
-                            "  'what'         : $what, "
-                            "  'who'          : $who  }" );
-  log->set( "auth_name", auth.getPrefix().toUri() );
-  log->set( "route_hash", (int64_t)auth.getRouteHash() );
-  log->set( "access_level", (int64_t)auth.getAccessLevel() );
-  log->set( "why", why );
-  log->set( "what", string("PositiveCacheInsert") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-EdgeStrategy::logNegativeCacheInsert( const ndn::AuthTag& auth,
-                                      const std::string& why ) const
-{
-  if( !shouldLogNegativeCacheInsert() )
-      return;
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Edge",
-                            "{ 'auth-prefix'  : $auth_prefix, "
-                            "  'route-hash'   : $route_hash, "
-                            "  'access-level' : $access_level, "
-                            "  'why'          : $why, "
-                            "  'what'         : $what, "
-                            "  'who'          : $who  }" );
-  log->set( "auth_name", auth.getPrefix().toUri() );
-  log->set( "route_hash", (int64_t)auth.getRouteHash() );
-  log->set( "access_level", (int64_t)auth.getAccessLevel() );
-  log->set( "why", why );
-  log->set( "what", string("NegativeCacheInsert") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-bool
-EdgeStrategy::shouldLogAuthValidityProbSet( void ) const
-{
-    return false;
-}
-
-bool
-EdgeStrategy::shouldLogPositiveCacheInsert( void ) const
-{
-    return false;
-}
-
-bool
-EdgeStrategy::shouldLogNegativeCacheInsert( void ) const
-{
-    return false;
-}
-
 
 }

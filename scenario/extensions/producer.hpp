@@ -16,6 +16,7 @@
 #include "ns3/core-module.h"
 #include "ns3/ndnSIM/apps/ndn-app.hpp"
 #include "ns3/ndnSIM/NFD/daemon/fw/tx-queue.hpp"
+#include "ns3/traced-callback.h"
 #include "ndn-cxx/name.hpp"
 #include "ndn-cxx/interest.hpp"
 #include "ndn-cxx/data.hpp"
@@ -34,6 +35,8 @@ namespace ndntac
   class Producer : public ns3::ndn::App
   {
     public:
+          static std::string s_config;
+        
           static ns3::TypeId
           GetTypeId();
 
@@ -42,6 +45,9 @@ namespace ndntac
           void
           OnInterest
          ( std::shared_ptr< const ndn::Interest> interest ) override;
+         
+         const ndn::Name&
+         GetPrefix( void ) const;
 
     protected:
           void
@@ -88,16 +94,10 @@ namespace ndntac
             
             // delay for each bloom loockup
             ns3::Time bloom_delay;
-            
-            // base delay for processing each request
-            // without signature or bloom loockup overhead
-            ns3::Time request_delay;
         };
         Config  m_config;
         
-    public:
-            static const size_t s_segment_size;
-            static std::string s_config;
+        static const size_t s_segment_size;
     };
 
 };

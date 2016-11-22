@@ -1,7 +1,6 @@
 #include "router-strategy.hpp"
-#include "logger.hpp"
-#include "log.hpp"
 #include "ns3/ndnSIM/utils/dummy-keychain.hpp"
+#include "tracers.hpp"
 
 namespace ndntac
 {
@@ -26,7 +25,7 @@ RouterStrategy::RouterStrategy( nfd::Forwarder& forwarder,
                                 , m_auth_cache( 1e-10, 10000 )
                                 , m_forwarder( forwarder )
 {
-m_instance_id = s_instance_id++;
+    m_instance_id = s_instance_id++;
 }
   
 bool
@@ -36,14 +35,6 @@ RouterStrategy::filterOutgoingData
   ndn::Data& data,
   ns3::Time& delay )
 {   
-    // if the data's access level is 0 (public)
-    // then forward without authenticating
-    if( data.getAccessLevel() == 0 )
-    {
-        toPreserve( data, interest );
-        onDataPreserved( data, interest );
-        return true;
-    }
 
     // here we use the route hash to determine if this
     // data was sent in response to the given interest,
@@ -58,15 +49,35 @@ RouterStrategy::filterOutgoingData
       && data.getEntryRoute() == interest.getEntryRoute() )
     {
        toPreserve( data, interest );
-       onDataPreserved( data, interest );
+       onDataPreserved( data, interest, delay );
+       tracers::router->sent_data( data );
        return true;
+    }
+    
+    // we replace the data's route tracker with
+    // that of its requesting interest
+    data.setRouteTracker( interest.getRouteTracker() );
+
+    // if the data's access level is 0 (public)
+    // then forward without authenticating
+    if( data.getAccessLevel() == 0 )
+    {
+        toSatisfy( data, interest );
+        onDataSatisfied( data, interest, delay );
+        tracers::router->validation
+        ( tracers::ValidationSuccessSkipped );
+        tracers::router->sent_data( data );
+        return true;
     }
     
     // if interest doesn't have an auth tag then reject
     if( interest.hasAuthTag() == false )
     {
         toNack( data, interest );
-        onDataDenied( data, interest, "missing auth tag" );
+        onDataDenied( data, interest, delay, "missing auth tag" );
+        tracers::router->validation
+        ( tracers::ValidationFailureNoAuth );
+        tracers::router->sent_data( data );
         return true;
     }
     
@@ -77,7 +88,11 @@ RouterStrategy::filterOutgoingData
     if( data.getAccessLevel() > auth.getAccessLevel() )
     {
         toNack( data, interest );
-        onDataDenied( data, interest, "insufficient access level" );
+        onDataDenied( data, interest, delay,
+                      "insufficient access level" );
+        tracers::router->validation
+        ( tracers::ValidationFailureLowAuth );
+        tracers::router->sent_data( data );
         return true;
     }
     
@@ -87,7 +102,11 @@ RouterStrategy::filterOutgoingData
       || auth.getKeyLocator() != data.getSignature().getKeyLocator() )
     {
         toNack( data, interest );
-        onDataDenied( data, interest, "missmatched key locators" );
+        onDataDenied( data, interest, delay,
+                      "missmatched key locators" );
+        tracers::router->validation
+        ( tracers::ValidationFailureBadKeyLoc );
+        tracers::router->sent_data( data );
         return true;
     }
     
@@ -98,7 +117,6 @@ RouterStrategy::filterOutgoingData
     if( interest.getAuthValidityProb() > 0 )
     {
         data.setNoReCacheFlag( true );
-        logNoReCacheFlagSet( data, interest );
     }
 
     // with a probability equivalent to the interest's
@@ -107,7 +125,10 @@ RouterStrategy::filterOutgoingData
     if( (uint32_t)rand() < interest.getAuthValidityProb() )
     {
         toSatisfy( data, interest );
-        onDataSatisfied( data, interest );
+        onDataSatisfied( data, interest, delay );
+        tracers::router->validation
+        ( tracers::ValidationSuccessValProb );
+        tracers::router->sent_data( data );
         return true;
     }
     
@@ -115,11 +136,16 @@ RouterStrategy::filterOutgoingData
     // use the auth cache for optimization
     // this step likely isn't really that usefull
     // we may remove it later
+    tracers::router->bloom_lookup( auth, s_router_bloom_delay );
+    delay += s_router_bloom_delay;
     if( interest.getAuthValidityProb() > 0
       && m_auth_cache.contains( auth ) )
     {
         toSatisfy( data, interest );
-        onDataSatisfied( data, interest );
+        onDataSatisfied( data, interest, delay );
+        tracers::router->validation
+        ( tracers::ValidationSuccessBloom );
+        tracers::router->sent_data( data );
         return true;
     }
     
@@ -129,18 +155,30 @@ RouterStrategy::filterOutgoingData
     // is a dummy; we just consider any signature with
     // the first byte set to 0 to be a bad signature,
     // and all others to be good
+    tracers::router->sigverif( auth, s_router_signature_delay );
     delay += RouterStrategy::s_router_signature_delay;
     if( auth.getSignature().getValue().value_size() > 0
       && auth.getSignature().getValue().value()[0] != 0 )
     {
         toSatisfy( data, interest );
-        onDataSatisfied( data, interest );
+        onDataSatisfied( data, interest, delay );
+        tracers::router->validation
+        ( tracers::ValidationSuccessSig );
+        tracers::router->sent_data( data );
+        
+        
+        tracers::router->bloom_insert( auth, s_router_bloom_delay );
+        delay += s_router_bloom_delay;
+        m_auth_cache.insert( auth );
         return true;
     }
     
     // if any checks fail then reject the interest
     toNack( data, interest );
-    onDataDenied( data, interest, "bad signature" );
+    onDataDenied( data, interest, delay, "bad signature" );
+    tracers::router->validation
+    ( tracers::ValidationFailureSig );
+    tracers::router->sent_data( data );
     return true;
 }
 
@@ -150,7 +188,7 @@ RouterStrategy::filterOutgoingInterest
   ndn::Interest& interest,
   ns3::Time& delay )
 {
-    logInterestSent( interest );
+    tracers::router->sent_interest( interest );
     return true;
 }
 
@@ -177,32 +215,29 @@ RouterStrategy::toPreserve( ndn::Data& data, const ndn::Interest& interest )
 void
 RouterStrategy::onDataDenied( const ndn::Data& data,
                               const ndn::Interest& interest,
+                              ns3::Time& delay,
                               const std::string& why )
 {
-    if( interest.hasAuthTag() )
-        logDataDenied( data, interest.getAuthTag(),  why );
-    else
-        logDataDenied( data,  why );
+    // NADA
 }
 
 void
 RouterStrategy::onDataSatisfied( const ndn::Data& data,
-                                 const ndn::Interest& interest )
+                                 const ndn::Interest& interest,
+                                 ns3::Time& delay )
 {
-    if( interest.hasAuthTag() )
-        logDataSent( data, interest.getAuthTag() );
-    else
-        logDataSent( data  );
+    // NADA
 }
 
 void
 RouterStrategy::onDataPreserved( const ndn::Data& data,
-                                 const ndn::Interest& interest )
+                                 const ndn::Interest& interest,
+                                 ns3::Time& delay )
 {
     if( data.getContentType() == ndn::tlv::ContentType_Nack )
-        onDataDenied( data, interest, "upstream" );
+        onDataDenied( data, interest, delay, "upstream" );
     else
-        onDataSatisfied( data, interest );
+        onDataSatisfied( data, interest, delay );
 }
 
 void
@@ -210,190 +245,7 @@ RouterStrategy::onInterestDropped( const ndn::Interest& interest,
                                    const nfd::Face& face,
                                    const std::string& why )
 {
-    logInterestDropped( interest, why );
-}
-
-void
-RouterStrategy::logDataDenied( const ndn::Data& data,
-                              const ndn::AuthTag& auth,
-                              const std::string& why ) const
-{
-  if( !shouldLogDataDenied() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'data-name'     : $data_name, "
-                            "  'data-access'   : $data_access, "
-                            "  'auth-prefix'   : $auth_prefix, "
-                            "  'auth-access'   : $auth_access, "
-                            "  'auth-expired'  : $auth_expired, "
-                            "  'why'           : $why, "
-                            "  'what'          : $what,"
-                            "  'who'           : $who }" );
-  log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (int64_t)data.getAccessLevel() );
-  log->set( "auth_prefix", auth.getPrefix().toUri() );
-  log->set( "auth_access", (int64_t)auth.getAccessLevel() );
-  log->set( "auth_expired", auth.isExpired() );
-  log->set( "why", why );
-  log->set( "what", string("DataDenied") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-RouterStrategy::logDataDenied( const ndn::Data& data,
-                             const std::string& why ) const
-{
-  if( !shouldLogDataDenied() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'data-name'     : $data_name, "
-                            "  'data-access'   : $data_access, "
-                            "  'why'           : $why, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who }" );
-  log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (int64_t)data.getAccessLevel() );
-  log->set( "why", why );
-  log->set( "what", string("DataDenied") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-RouterStrategy::logDataSent( const ndn::Data& data,
-                            const ndn::AuthTag& auth ) const
-{
-  if( !shouldLogDataSent() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'data-name'     : $data_name, "
-                            "  'data-access'   : $data_access, "
-                            "  'auth-prefix'   : $auth_prefix, "
-                            "  'auth-access'   : $auth_access, "
-                            "  'auth-expired'  : $auth_expired, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who }" );
-  log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (int64_t)data.getAccessLevel() );
-  log->set( "auth_prefix", auth.getPrefix().toUri() );
-  log->set( "auth_access", (int64_t)auth.getAccessLevel() );
-  log->set( "auth_expired", auth.isExpired() );
-  log->set( "what", string("DataSent") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-void
-RouterStrategy::logDataSent( const ndn::Data& data) const
-{
-  if( !shouldLogDataSent() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'data-name'     : $data_name, "
-                            "  'data-access'   : $data_access, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who }" );
-  log->set( "data_name", data.getName().toUri() );
-  log->set( "data_access", (int64_t)data.getAccessLevel() );
-  log->set( "what", "DataSent" );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-RouterStrategy::logNoReCacheFlagSet( const ndn::Data& data,
-                                    const ndn::Interest& interest ) const
-{
-  if( !shouldLogNoReCacheFlagSet() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'data-name'        : $data_name, "
-                            "  'interest-vprob'   : $vprob, "
-                            "  'what'             : $what, "
-                            "  'who'              : $who }" );
-  log->set( "data_name", data.getName().toUri() );
-  log->set( "vprob", (int64_t)interest.getAuthValidityProb() );
-  log->set( "what", string("NoReCacheFlagSet") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-RouterStrategy::logInterestSent( const ndn::Interest& interest ) const
-{
-  if( !shouldLogInterestSent() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'interest-name' : $interest_name, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who }" );
-  log->set( "interest_name", interest.getName().toUri() );
-  log->set( "what", string("SentInterest") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-void
-RouterStrategy::logInterestDropped( const ndn::Interest& interest,
-                                    const std::string& why ) const
-{
-  if( !shouldLogInterestDropped() )
-    return;
-
-  static Log* log = Logger::getInstance( "simulation.log.udb" ).makeLog(
-                            "Router",
-                            "{ 'interest-name' : $interest_name, "
-                            "  'why'           : $why, "
-                            "  'what'          : $what, "
-                            "  'who'           : $who }" );
-  log->set( "interest_name", interest.getName().toUri() );
-  log->set( "why", why );
-  log->set( "what", string("InterestDropped") );
-  log->set( "who", (int64_t)m_instance_id );
-  log->write();
-}
-
-// these can be modified to control what gets logged
-bool
-RouterStrategy::shouldLogDataDenied( void ) const
-{
-    return true;
-}
-
-bool
-RouterStrategy::shouldLogDataSent( void ) const
-{
-    return false;
-}
-
-bool
-RouterStrategy::shouldLogNoReCacheFlagSet( void ) const
-{
-    return false;
-}
-
-bool
-RouterStrategy::shouldLogInterestSent( void ) const
-{
-    return false;
-}
-
-bool
-RouterStrategy::shouldLogInterestDropped( void ) const
-{
-    return true;
+    // NADA
 }
 
 }

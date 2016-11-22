@@ -16,6 +16,14 @@
  * You should have received a copy of the GNU General Public License along with
  * ndnSIM, e.g., in COPYING.md file.  If not, see <http://www.gnu.org/licenses/>.
  **/
+ 
+ /**
+ * This file has been modified
+ * by Ray Stubbs [stubbs.ray@gmail.com] for a specific simulation.
+ * The constructor has been modified to detect if the NetDevice
+ * is an edge device that connects two networks, and to set a 
+ * flag in the nfd::Face if it is.
+ **/
 
 #include "ndn-net-device-face.hpp"
 #include "ndn-l3-protocol.hpp"
@@ -40,7 +48,14 @@ namespace ns3 {
 namespace ndn {
 
 NetDeviceFace::NetDeviceFace(Ptr<Node> node, const Ptr<NetDevice>& netDevice)
-  : Face(FaceUri("netDeviceFace://"), FaceUri("netDeviceFace://"))
+  : Face(FaceUri("netDeviceFace://"),
+         FaceUri("netDeviceFace://"),
+         false,
+         // this is the mod mentioned above
+         ( netDevice->GetObject<Object>
+             ( TypeId::LookupByName( "ndntac::IsEdgeFlag" ) )
+             ? true : false ),
+         false )
   , m_node(node)
   , m_netDevice(netDevice)
 {

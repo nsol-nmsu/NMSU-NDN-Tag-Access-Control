@@ -193,10 +193,8 @@ enum ContentTypeValue {
   /** Contains an AuthTag from a producer granting data access to a consumer */
   ContentType_Auth = 4,
 
-  /** Indicates that the interest issued by the consumer does not
-  *   have the requered access ( AuthTag ) to retrieve the content,
-  *   and tells the consumer the name of the providers AuthTag, and
-  *   which credentials are required to obtain it.
+  /** Indicates that the producer denied the consumer's
+  *   AuthRequest.
   */
   ContentType_AuthDenial = 5,
 

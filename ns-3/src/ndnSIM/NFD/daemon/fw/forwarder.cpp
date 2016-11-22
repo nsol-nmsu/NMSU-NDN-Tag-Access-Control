@@ -163,7 +163,7 @@ Forwarder::onContentStoreHit(const Face& inFace,
   this->dispatchToStrategy(pitEntry, bind(&Strategy::beforeSatisfyInterest, _1,
                                           pitEntry, cref(*m_csFace), cref(data)));
 
-  const_pointer_cast<Data>(data.shared_from_this())->setIncomingFaceId(FACEID_CONTENT_STORE);
+  //const_pointer_cast<Data>(data.shared_from_this())->setIncomingFaceId(FACEID_CONTENT_STORE);
   // XXX should we lookup PIT for other Interests that also match csMatch?
 
   // set PIT straggler timer
@@ -246,9 +246,10 @@ Forwarder::onOutgoingInterest(shared_ptr<pit::Entry> pitEntry, Face& outFace,
     interest->setNonce(dist(getGlobalRng()));
   }
   
+  auto tx_interest = make_shared<Interest>( *interest );
   auto delay = ns3::Seconds( 0 );
   fw::Strategy& strategy = m_strategyChoice.findEffectiveStrategy(*pitEntry);
-  if( !strategy.filterOutgoingInterest( outFace, *interest, delay ) )
+  if( !strategy.filterOutgoingInterest( outFace, *tx_interest, delay ) )
   {
     onInterestReject( pitEntry );
     return;
@@ -259,7 +260,7 @@ Forwarder::onOutgoingInterest(shared_ptr<pit::Entry> pitEntry, Face& outFace,
 
   // send Interest
   m_tx_queue.delay( delay );
-  m_tx_queue.sendInterest( outFace.shared_from_this(), interest );
+  m_tx_queue.sendInterest( outFace.shared_from_this(), tx_interest );
   ++m_counters.getNOutInterests();
 }
 
@@ -339,6 +340,9 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     return;
   }
 
+  /** NDNTAC needs to know whaface the data came from
+      so we don't remove the packet
+      
   // Remove Ptr<Packet> from the Data before inserting into cache, serving two purposes
   // - reduce amount of memory used by cached entries
   // - remove all tags that (e.g., hop count tag) that could have been associated with Ptr<Packet>
@@ -353,6 +357,11 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
     m_cs.insert(*dataCopyWithoutPacket);
   else
     m_csFromNdnSim->Add(dataCopyWithoutPacket);
+  */
+  if (m_csFromNdnSim == nullptr)
+    m_cs.insert(data);
+  else
+    m_csFromNdnSim->Add(data.shared_from_this());
 
   std::list< pit::InRecord > pendingDownstreams;
   // foreach PitEntry
@@ -394,11 +403,6 @@ Forwarder::onIncomingData(Face& inFace, const Data& data)
       continue;
     }
     
-    // debug
-    if( pendingDownstreams.size() > 1 )
-    {
-        int dbg = 0;
-    }
     // give the strategy the final say on whether we
     // send the data or not, and if so then what data we send
     auto tx_data = make_shared<Data>(data);

@@ -22576,7 +22576,8 @@ static sxi32 HashmapLookup(
 			/* Force a string cast */
 			jx9MemObjToString(&(*pKey));
 		}
-		if( SyBlobLength(&pKey->sBlob) > 0 ){
+		if( SyBlobLength(&pKey->sBlob) > 0
+		  && !HashmapIsIntKey(&pKey->sBlob) > 0 ){
 			/* Perform a blob lookup */
 			rc = HashmapLookupBlobKey(&(*pMap), SyBlobData(&pKey->sBlob), SyBlobLength(&pKey->sBlob), &pNode);
 			goto result;
