@@ -189,8 +189,19 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   }
   if( tag.getKeyLocator() != data->getSignature().getKeyLocator() )
   {
-    tracers::producer->validation(
-     tracers::ValidationFailureBadKeyLoc );
+    tracers::producer->validation
+    ( tracers::ValidationFailureBadKeyLoc );
+    toNack( *data );
+    tracers::producer->sent_data( *data );
+    m_tx_queue.receiveData( m_face, data );
+    return;
+  }
+
+  // tags with bad route hash are refused
+  if( tag.getRouteHash() != interest->getEntryRoute() )
+  {
+    tracers::producer->validation
+    ( tracers::ValidationFailureBadRoute );
     toNack( *data );
     tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );

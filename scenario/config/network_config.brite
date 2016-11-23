@@ -4,9 +4,9 @@ BriteConfig
 
 BeginModel
 	Name =  1		 #Router Waxman = 1, AS Waxman = 3
-	N = 100		 #Number of nodes in graph
-	HS = 100		 #Size of main plane (number of squares)
-	LS = 100		 #Size of inner planes (number of squares)
+	N = 10000		 #Number of nodes in graph
+	HS = 10000		 #Size of main plane (number of squares)
+	LS = 10000		 #Size of inner planes (number of squares)
 	NodePlacement = 1	 #Random = 1, Heavy Tailed = 2
 	GrowthType = 1		 #Incremental = 1, All = 2
 	m = 2			 #Number of neighboring node each new node connects to.

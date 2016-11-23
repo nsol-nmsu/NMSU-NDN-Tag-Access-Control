@@ -1,7 +1,7 @@
-$nproducers = 1;
-$nconsumers = 50;
-$nproducer_edges = 5;
-$nconsumer_edges = 5;
+$nproducers = 10;
+$nconsumers = 100;
+$nproducer_edges = 10;
+$nconsumer_edges = 10;
 $network_config = "config/network_config.brite";
 $subnet_config = "config/subnet_config.brite";
 $producer_config = "config/producer_config.jx9";

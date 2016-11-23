@@ -18,6 +18,7 @@
 #include "edge-strategy.hpp"
 #include "include-only-once.hpp"
 #include "is-edge-flag.hpp"
+#include "tracers.hpp"
 
 #include "unqlite.hpp"
 
@@ -192,6 +193,28 @@ int main( int argc, char* argv[] )
     GlobalRoutingHelper::CalculateRoutes();
     
     
+    tracers::EnableTagsCreatedTrace
+    ( "results/tags-created-trace.txt", Seconds( 1 ) );
+    tracers::EnableTagsActiveTrace
+    ( "results/tags-active-trace.txt", Seconds( 1 ) );
+    tracers::EnableTagSigVerifTrace
+    ( "results/tag-sigverif-trace.txt", Seconds( 1 ) );
+    tracers::EnableTagBloomTrace
+    ( "results/tag-bloom-trace.txt", Seconds( 1 ) );
+    tracers::EnableOverheadTrace
+    ( "results/overhead-trace.txt", Seconds( 1 ) );
+    tracers::EnableDropTrace
+    ( "results/drop-trace.txt", Seconds( 1 ) );
+    tracers::EnableRateTrace
+    ( "results/rate-trace.txt", Seconds( 1 ) );
+    tracers::EnableValidationTrace
+    ( "results/validation-trace.txt", Seconds( 1 ) );
+    tracers::EnableTransmissionTrace
+    ( "results/transmission-trace.txt", Seconds( 1 ) );
+    tracers::EnableEdgeBlockTrace
+    ( "results/edgeblock-trace.txt", Seconds( 1 ) );
+    tracers::EnableConsumerTrace
+    ( "results/consumer-trace.txt", Seconds( 1 ) );
     Simulator::Stop( config.simulation_time );
     Simulator::Run();
     Simulator::Destroy();

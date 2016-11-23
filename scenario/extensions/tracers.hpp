@@ -32,7 +32,8 @@ enum ValidationDetail
     ValidationFailureLowAuth,
     ValidationFailureBadKeyLoc,
     ValidationFailureExpired,
-    ValidationFailureBadPrefix
+    ValidationFailureBadPrefix,
+    ValidationFailureBadRoute
 };
 
 enum AuthCachedDetail
@@ -45,7 +46,8 @@ enum AuthCachedDetail
 enum BlockedDetail
 {
     BlockedExpired,
-    BlockedBadPrefix
+    BlockedBadPrefix,
+    BlockedBadRoute
 };
 
 
@@ -83,7 +85,7 @@ struct ProducerTrace : ns3::Object
     < const ndn::Data& >
     sent_data;
 };
-ns3::Ptr< ProducerTrace > producer;
+extern ns3::Ptr< ProducerTrace > producer;
 
 struct ConsumerTrace : ns3::Object
 {
@@ -141,7 +143,7 @@ struct ConsumerTrace : ns3::Object
     < uint32_t /*seq*/ >
     timeout;
 };
-ns3::Ptr< ConsumerTrace > consumer;
+extern ns3::Ptr< ConsumerTrace > consumer;
 
 
 // tracers
@@ -174,7 +176,7 @@ struct RouterTrace : ns3::Object
     < const ndn::Data& >
     sent_data;
 };
-ns3::Ptr< RouterTrace > router;
+extern ns3::Ptr< RouterTrace > router;
 
 // tracers
 struct EdgeTrace : ns3::Object
@@ -227,7 +229,7 @@ struct EdgeTrace : ns3::Object
     < const ndn::AuthTag&, ns3::Time /*delay*/>
     bloom_insert;
 };
-ns3::Ptr< EdgeTrace > edge;
+extern ns3::Ptr< EdgeTrace > edge;
 
 
 
@@ -301,6 +303,13 @@ EnableTransmissionTrace
 // the edge router and the reasons
 void
 EnableEdgeBlockTrace
+( const std::string& logfile,
+  ns3::Time interval );
+
+// traces number of datas, nacks, and whatnot
+// received by the consumer
+void
+EnableConsumerTrace
 ( const std::string& logfile,
   ns3::Time interval );
 

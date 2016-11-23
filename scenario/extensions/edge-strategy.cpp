@@ -143,6 +143,16 @@ EdgeStrategy::filterOutgoingInterest
         return false;
     }
     
+    // if the interest route hash doesn't match its auth tag
+    // then we can drop it
+    if( interest.getEntryRoute() != auth.getRouteHash() )
+    {
+        tracers::edge->blocked_interest
+        ( interest, tracers::BlockedBadRoute );
+        onInterestDropped( interest, face, "Bad route" );
+        return false;
+    }
+    
     // if the interest auth is in the positive auth cache then
     // we set its auth validity probability
     tracers::edge->bloom_lookup( auth, s_edge_bloom_delay );
