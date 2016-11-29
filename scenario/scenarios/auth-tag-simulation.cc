@@ -213,8 +213,8 @@ int main( int argc, char* argv[] )
     ( "results/transmission-trace.txt", Seconds( 1 ) );
     tracers::EnableEdgeBlockTrace
     ( "results/edgeblock-trace.txt", Seconds( 1 ) );
-    tracers::EnableConsumerTrace
-    ( "results/consumer-trace.txt", Seconds( 1 ) );
+    //tracers::EnableConsumerTrace
+    //( "results/consumer-trace.txt", Seconds( 1 ) );
     Simulator::Stop( config.simulation_time );
     Simulator::Run();
     Simulator::Destroy();
