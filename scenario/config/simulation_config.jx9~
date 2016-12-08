@@ -1,7 +1,7 @@
-$nproducers = 100;
-$nconsumers = 5000;
-$nproducer_edges = 100;
-$nconsumer_edges = 1000;
+$nproducers = 1000;
+$nconsumers = 1000000;
+$nproducer_edges = 1000;
+$nconsumer_edges = 1000000;
 $simulation_time = 300;
 $network_config = "config/network_config.brite";
 $subnet_config = "config/subnet_config.brite";
