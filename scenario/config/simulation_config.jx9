@@ -1,4 +1,4 @@
-$nproducers = 10;
+$nproducers = 5;
 $nconsumers = 100;
 $nproducer_edges = 10;
 $nconsumer_edges = 10;

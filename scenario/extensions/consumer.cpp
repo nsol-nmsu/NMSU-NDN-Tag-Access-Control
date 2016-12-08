@@ -278,12 +278,13 @@ Consumer::StartContent( const Name& content )
 {
     m_content_name = content;
     
-    Time now = Simulator::Now();
+    /*Time now = Simulator::Now();
     if( now >= m_config.start_time )
         Simulator::Schedule( NextGap(), &Consumer::FillWindow, this );
     else
         Simulator::Schedule( m_config.start_time - now ,
-                             &Consumer::FillWindow, this );
+                             &Consumer::FillWindow, this );*/
+    Simulator::ScheduleNow( &Consumer::FillWindow, this );
 }
 
 void
@@ -318,12 +319,14 @@ Consumer::SendNext( void )
         // the current content
         name = m_content_name;
         name.appendSegment( m_segno );
+        
     }
     // otherwise set the name to request authentication
     else
     {
         name = m_content_name.getPrefix( 1 );
         name.append( "AUTH_TAG" );
+        name.appendNumber( m_instance_id );
         m_pending_auth = true;
     }
     
