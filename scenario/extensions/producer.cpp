@@ -219,22 +219,22 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
   // adding delay to the transmit queue, signature is valid if it
   // isn't equal to DUMMY_BAD_SIGNATURE, which has 0 as its first
   // byte
-  tracers::producer->sigverif
-  ( tag, m_config.sigverif_delay );
-  m_tx_queue.delay( m_config.sigverif_delay );
+  //tracers::producer->sigverif
+  //( tag, m_config.sigverif_delay );
+  //m_tx_queue.delay( m_config.sigverif_delay );
   if( tag.getSignature().getValue().value_size() > 0
       && tag.getSignature().getValue().value()[0] != 0 )
   {
-    tracers::producer->validation
-    ( tracers::ValidationSuccessSig );
+    //tracers::producer->validation
+    //( tracers::ValidationSuccessSig );
     tracers::producer->sent_data( *data );
     m_tx_queue.receiveData( m_face, data );
     return;
   }
 
   // signature was invalid
-  tracers::producer->validation
-  ( tracers::ValidationFailureSig );
+  //tracers::producer->validation
+  //( tracers::ValidationFailureSig );
   toNack( *data );
   tracers::producer->sent_data( *data );
   m_tx_queue.receiveData( m_face, data );

@@ -277,35 +277,21 @@ void
 Consumer::StartContent( const Name& content )
 {
     m_content_name = content;
+    m_segno = 0;
     
-    /*Time now = Simulator::Now();
+    Time now = Simulator::Now();
     if( now >= m_config.start_time )
         Simulator::Schedule( NextGap(), &Consumer::FillWindow, this );
     else
         Simulator::Schedule( m_config.start_time - now ,
-                             &Consumer::FillWindow, this );*/
-    Simulator::ScheduleNow( &Consumer::FillWindow, this );
+                             &Consumer::FillWindow, this );
 }
 
 void
 Consumer::FillWindow( void )
 {
-    while( m_pending.size() < m_window && !m_pending_auth )
-        SendNext();
-}
-
-void
-Consumer::SendNext( void )
-{   
-    // we can't send anything while waiting for an auth
-    if( m_pending_auth )
-        return;
-
-    // if we have authentication then either retransmit
-    // from the retx queue or set the name to the next
-    // packet of the content
-    Name name;
-    if( HasAuth() )
+    
+    while( m_pending.size() < m_window )
     {
         // if the retx queue isn't empty then we retransmit
         if( !m_retx_queue.empty() )
@@ -314,7 +300,28 @@ Consumer::SendNext( void )
             m_retx_queue.pop();
             return;
         }
-        
+        // if we're waiting for an auth tag then we don't send
+        // any new interests
+        else if( m_pending_auth )
+        {
+            return;
+        }
+        // otherwise send the next interest
+        else
+        {
+            SendNext();
+        }
+    }
+}
+
+void
+Consumer::SendNext( void )
+{
+    // if we have an auth tag for the current content then
+    // request the next packet
+    Name name;
+    if( HasAuth() )
+    {
         // otherwise we set the name to the next segment of
         // the current content
         name = m_content_name;
@@ -383,6 +390,11 @@ Consumer::RetX( uint32_t seq )
 {
     // adjust entry
     PendingEntry& info = m_pending[seq];
+    
+    // if auth is expired then give up
+    if( info.interest->hasAuthTag() && info.interest->getAuthTag().isExpired() )
+        return;
+    
     info.lx_time = Simulator::Now();
     info.retx_timeout = m_rtt->RetransmitTimeout();
     
@@ -541,7 +553,7 @@ Consumer::Config::Config( const string& file, uint32_t id )
 
     val = unqlite_vm_extract_variable( vm, "max_window_size" );
     if( unqlite_value_is_int( val ) )
-        initial_window_size = unqlite_value_to_int64( val );
+        max_window_size = unqlite_value_to_int64( val );
     
     val = unqlite_vm_extract_variable( vm, "exp_mean" );
     if( val && unqlite_value_is_float( val ) )

@@ -1,8 +1,8 @@
-$nproducers = 5;
-$nconsumers = 100;
-$nproducer_edges = 10;
-$nconsumer_edges = 10;
-$simulation_time = 10;
+$nproducers = 500;
+$nconsumers = 5000;
+$nproducer_edges = 500;
+$nconsumer_edges = 1000;
+$simulation_time = 100;
 $network_config = "config/network_config.brite";
 $producer_config = "config/producer_config.jx9";
 $consumer_config = "config/consumer_config.jx9";
