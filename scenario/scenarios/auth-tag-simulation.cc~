@@ -614,10 +614,6 @@ makeTopo
     }
     edges_out.Add( producer_edges );
     edges_out.Add( consumer_edges );
-
-    // TODO: better data rate assignments
-    // for now consumers and producers have 1Gbps
-    p2p_helper.SetDeviceAttribute( "DataRate", StringValue( "1Gbps" ) );
     
     // make some producers
     producers_out.Create( config.nproducers );
@@ -634,7 +630,6 @@ makeTopo
         
     }
     internet_helper.Install( producers_out );
-
     
     // make some consumers
     consumers_out.Create( config.nconsumers );

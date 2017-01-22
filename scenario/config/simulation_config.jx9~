@@ -1,5 +1,5 @@
-$nproducers = 1;
-$nconsumers = 1;
+$nproducers = 5;
+$nconsumers = 20;
 $nproducer_edges = 5;
 $nconsumer_edges = 10;
 $simulation_time = 20;
@@ -38,7 +38,7 @@ function zipf( int $rank, int $N, float $q, float $s )
     return $val;
 }
 
-$contents_per_producer = 50;
+$contents_per_producer = 500;
 function producer_contents( int $producer )
 {
     uplink $contents_per_producer;
@@ -53,10 +53,10 @@ function producer_contents( int $producer )
     return $contents;
 }
 
-$contents_per_consumer = 10;
+$contents_per_consumer = 200;
 function consumer_contents( int $consumer )
 {
-    uplink $contents_per_consumer, $contents_per_producer, $nproducers;
+    uplink $contents_per_consumer, $contents_per_producer;
     
     print "contents to generate $contents_per_consumer\n";
     $contents = [];

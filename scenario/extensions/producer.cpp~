@@ -128,7 +128,7 @@ Producer::onDataRequest( shared_ptr< const Interest > interest )
      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     
   // make data
-  uint8_t access_level = 1;
+  uint8_t access_level = name_entry->second.access_level;
   shared_ptr<Data> data = make_shared< Data >( interest->getName() );
   data->setContentType( tlv::ContentType_Blob );
 

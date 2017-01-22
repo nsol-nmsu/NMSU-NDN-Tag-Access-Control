@@ -1,8 +1,8 @@
 $start_time = 0;
 $interest_lifetime = 2;
 $retx_timer = 2;
-$initial_window_size = 7;
-$max_window_size = 7;
+$initial_window_size = 5;
+$max_window_size = 5;
 $exp_mean = 1;
 $exp_bound = 2;
 $enable_no_auth = false;

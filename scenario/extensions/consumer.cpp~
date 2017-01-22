@@ -80,12 +80,16 @@ Consumer::OnData( std::shared_ptr< const Data > data )
         tracers::consumer->unrequested();
         return;
     }
+
+    
+    if( data->getName() == Name( "/0/content4/%00%01" ) )
+        it = m_seqs.end();
     
     // store sequence number
     uint32_t seq = it->second;
     
     // get the associated request information
-    PendingEntry& info = m_pending.at( seq );
+    PendingEntry& info = m_pending[seq];
     
     // update data trace
     tracers::consumer->data
@@ -298,7 +302,6 @@ Consumer::FillWindow( void )
 void
 Consumer::SendNext( void )
 {
-	
     // if we have an auth tag for the current content then
     // request the next packet
     Name name;
@@ -318,65 +321,56 @@ Consumer::SendNext( void )
         name.appendNumber( m_instance_id );
         m_pending_auth = true;
     }
-	
-	// send next request if not already pending
-	auto it = m_seqs.find( name );
-	if( it == m_seqs.end() )
-    {
-	    // make and configure interest
-	    uint32_t
-	    nonce( m_urng->GetValue( 0, numeric_limits<uint32_t>::max() ) );
-	    
-	    ::ndn::time::milliseconds
-	    lifetime( m_config.interest_lifetime.GetMilliSeconds() );
-	    
-	    auto interest = make_shared<Interest>( name );
-	    interest->setNonce( nonce );
-	    interest->setInterestLifetime( lifetime );
-	    interest->setRouteTracker( RouteTracker() );
-	    if( HasAuth() )
-	        interest->setAuthTag( *m_auth );
-	    
-	    // add to m_pending and m_seq
-	    PendingEntry info;
-	    info.interest      = interest;
-	    info.fx_time        = Simulator::Now();
-	    info.lx_time        = Simulator::Now();
-	    info.retx_timeout   = m_rtt->RetransmitTimeout();
-	    info.valid_auth = !m_config.enable_no_auth
-	                    && !m_config.enable_bad_auth_sig
-	                    && !m_config.enable_expired_auth
-	                    && !m_config.enable_bad_route
-	                    && !m_config.enable_bad_prefix
-	                    && !m_config.enable_bad_keyloc
-	                    && ( ( m_auth && !m_auth->isExpired() )
-	                       || name.get( 1 ) == Name::Component( "AUTH_TAG" ) );
-	                    
-	    m_pending.emplace( m_seqno, info );
-	    m_seqs.emplace( name, m_seqno );
-	    
-	    // queue interest
-	    interest->wireEncode();
-	    m_tx_queue.receiveInterest( m_face, interest );
-	    
-	    // notify m_rtt
-	    m_rtt->SentSeq( SequenceNumber32(m_seqno),
-	                    interest->wireEncode().size() );
-	    
-	    // update trace
-	    tracers::consumer->interest( *interest );
-
-	    
-	    // increment sequence number
-	    m_seqno++;
-	}
+    
+    // make and configure interest
+    uint32_t
+    nonce( m_urng->GetValue( 0, numeric_limits<uint32_t>::max() ) );
+    
+    ::ndn::time::milliseconds
+    lifetime( m_config.interest_lifetime.GetMilliSeconds() );
+    
+    auto interest = make_shared<Interest>( name );
+    interest->setNonce( nonce );
+    interest->setInterestLifetime( lifetime );
+    interest->setRouteTracker( RouteTracker() );
+    if( m_auth )
+        interest->setAuthTag( *m_auth );
+    
+    // add to m_pending and m_seq
+    PendingEntry info;
+    info.interest      = interest;
+    info.fx_time        = Simulator::Now();
+    info.lx_time        = Simulator::Now();
+    info.retx_timeout   = m_rtt->RetransmitTimeout();
+    info.valid_auth = !m_config.enable_no_auth
+                    && !m_config.enable_bad_auth_sig
+                    && !m_config.enable_expired_auth
+                    && !m_config.enable_bad_route
+                    && !m_config.enable_bad_prefix
+                    && !m_config.enable_bad_keyloc
+                    && ( m_auth && !m_auth->isExpired()
+                       || name.get( 1 ) == Name::Component( "AUTH_TAG" ) );
+                    
+    m_pending[m_seqno]  = info;
+    m_seqs[name] = m_seqno;
+    
+    // queue interest
+    interest->wireEncode();
+    m_tx_queue.receiveInterest( m_face, interest );
+    
+    // notify m_rtt
+    m_rtt->SentSeq( SequenceNumber32(m_seqno),
+                    interest->wireEncode().size() );
+    
+    // update trace
+    tracers::consumer->interest( *interest );
+    
+    // increment sequence number
+    m_seqno++;
 
     // schedule next content if finished with this one
     if( m_segno >= m_current_content.size )
-	{
-		Simulator::Schedule( NextGap(), &Consumer::StartNextContent, this );
-		return;
-	}
+        Simulator::Schedule( NextGap(), &Consumer::StartNextContent, this );
 }
 
 void
@@ -391,10 +385,7 @@ void
 Consumer::RetX( uint32_t seq )
 {
     // adjust entry
-    PendingEntry& info = m_pending.at( seq );
-	
-	// debug
-	PendingEntry dbginfo = m_pending.at( seq );
+    PendingEntry info = m_pending[seq];
     
     // if auth is expired then give up
     if( info.interest->hasAuthTag() && info.interest->getAuthTag().isExpired() )
@@ -617,7 +608,7 @@ Consumer::Config::Config( const string& file, uint32_t id )
                 unqlite_value* size_val =
                     unqlite_array_fetch( elem, "size", -1 );
                 unqlite_value* prob_val =
-                    unqlite_array_fetch( elem, "prob", -1 ); 
+                    unqlite_array_fetch( elem, "prob", -1 );
                 if( name_val && prob_val && size_val
                   && unqlite_value_is_string( name_val )
                   && unqlite_value_is_int( size_val )
